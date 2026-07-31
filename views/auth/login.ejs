@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - EngPersona</title>
+  <link rel="icon" type="image/jpeg" href="/wbicon.jpg">
+  <link rel="stylesheet" href="/engpersona-ui.css">
+</head>
+<body>
+  <main class="auth-screen login-screen">
+    <a href="/register" class="top-link">Daftar</a>
+
+    <section class="auth-card login" aria-label="Login">
+      <h1>Login</h1>
+
+      <div class="brand-stack">
+        <img class="ep-logo-img" src="/logo.png" alt="EngPersona">
+        <div class="ep-logo-text">EngPersona</div>
+      </div>
+
+      <% if (statusMessage || formError) { %>
+        <div class="form-error"><%= statusMessage || formError %></div>
+      <% } %>
+
+      <form action="/login" method="POST" class="auth-form">
+        <input
+          class="auth-input"
+          type="text"
+          name="username"
+          value="<%= oldInput.username || '' %>"
+          placeholder="Email"
+          required>
+        <input
+          class="auth-input"
+          type="password"
+          name="password"
+          placeholder="Password"
+          required>
+        <button class="auth-submit" type="submit">Login</button>
+      </form>
+
+      <div class="auth-divider">Atau</div>
+      <a class="auth-submit google-btn" href="/auth/google">Google</a>
+    </section>
+  </main>
+</body>
+</html>

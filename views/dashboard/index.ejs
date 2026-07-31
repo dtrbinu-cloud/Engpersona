@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - EngPersona</title>
+  <link rel="stylesheet" href="/engpersona-ui.css">
+  <style>
+    :root {
+      --bg-dark-panel: #0a223c;
+      --bg-gradient: linear-gradient(135deg, #5086ec, #2b5bc3);
+      --text-white: #ffffff;
+      --btn-bg: #dbe3ed;
+      --btn-text: #3c5473;
+      --btn-active-bg: #eef3ff;
+      --btn-active-text: #2a5cc0;
+      --node-locked: #b3c5d7;
+      --node-completed: #2575fc;
+      --node-active-ring: #ffffff;
+      --green-completed: #2ebd59;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Nunito", "Poppins", sans-serif;
+      background: var(--bg-gradient);
+      min-height: 100vh;
+      color: var(--text-white);
+      overflow-x: hidden;
+    }
+
+    /* ── Layout ── */
+    .dashboard-container {
+      display: grid;
+      grid-template-columns: 280px 1fr 380px;
+      min-height: 100vh;
+      padding: 20px;
+      gap: 20px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    /* ── Left Sidebar ── */
+    .sidebar {
+      background: var(--bg-dark-panel);
+      border-radius: 24px;
+      padding: 30px 24px;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 40px);
+      position: sticky;
+      top: 20px;
+      box-shadow: 0 15px 35px rgba(10, 34, 60, 0.25);
+    }
+
+    .sidebar-logo-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 40px;
+    }
+
+    .sidebar-logo-container img {
+      width: 100px;
+      height: auto;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-brand-name {
+      font-size: 24px;
+      font-weight: 900;
+      color: var(--text-white);
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-grow: 1;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      padding: 14px 20px;
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      border-radius: 16px;
+      font-size: 17px;
+      font-weight: 800;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+    }
+
+    .menu-item:hover {
+      transform: translateY(-2px);
+      background: #e6edf7;
+    }
+
+    .menu-item.active {
+      background: var(--btn-active-bg);
+      color: var(--btn-active-text);
+      box-shadow: 0 8px 20px rgba(255, 255, 255, 0.15);
+    }
+
+    .logout-form {
+      margin-top: auto;
+    }
+
+    .logout-btn-pill {
+      width: 100%;
+      height: 48px;
+      background: #000000;
+      color: var(--text-white);
+      border: none;
+      border-radius: 24px;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logout-btn-pill:hover {
+      background: #222222;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ── Center Content ── */
+    .center-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 0;
+      overflow-y: auto;
+    }
+
+    .mulai-btn-pill {
+      background: #000000;
+      color: var(--text-white);
+      border: none;
+      border-radius: 24px;
+      padding: 12px 48px;
+      font-size: 18px;
+      font-weight: 900;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+      margin-bottom: 40px;
+    }
+
+    .mulai-btn-pill:hover {
+      background: #222222;
+      transform: translateY(-3px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+    }
+
+    /* ── Path Levels ── */
+    .level-section {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 60px;
+      position: relative;
+      transition: opacity 0.5s ease;
+    }
+
+    .level-section.locked {
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    .level-title-banner {
+      font-size: 22px;
+      font-weight: 900;
+      margin-bottom: 30px;
+      color: var(--text-white);
+      text-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .path-container {
+      position: relative;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 36px;
+    }
+
+    /* SVG Connector Line */
+    .path-line-svg {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: calc(100% - 80px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .path-line-svg path {
+      stroke: rgba(255, 255, 255, 0.35);
+      stroke-width: 8;
+      fill: none;
+      stroke-dasharray: 12 8;
+    }
+
+    .path-node-wrapper {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Alternating Zig Zag offsets */
+    .path-node-wrapper.pos-left {
+      transform: translateX(-70px);
+    }
+    .path-node-wrapper.pos-right {
+      transform: translateX(70px);
+    }
+
+    .node-circle {
+      width: 86px;
+      height: 86px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* Node States */
+    .node-circle.state-locked {
+      background: var(--node-locked);
+      border: 6px solid #9bb0c4;
+      cursor: not-allowed;
+    }
+
+    .node-circle.state-completed {
+      background: var(--node-completed);
+      border: 6px solid #1a64df;
+    }
+
+    .node-circle.state-active {
+      background: transparent;
+      border: 6px solid var(--node-active-ring);
+      box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.3), 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .node-number {
+      font-size: 26px;
+      font-weight: 900;
+      color: rgba(255, 255, 255, 0.9);
+      position: absolute;
+    }
+
+    /* Label positioning relative to circle position */
+    .path-node-wrapper.pos-left .node-number-label {
+      left: 105px;
+    }
+    .path-node-wrapper.pos-right .node-number-label {
+      right: 105px;
+    }
+
+    .node-number-label {
+      position: absolute;
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--text-white);
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* Active Avatar container overlay */
+    .active-avatar-overlay {
+      position: absolute;
+      width: 106px;
+      height: 106px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 4px solid var(--node-active-ring);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+      top: -10px;
+      left: -10px;
+      z-index: 10;
+      background: #eef3ff;
+      animation: pulseActive 2s infinite ease-in-out;
+      pointer-events: none;
+    }
+
+    .active-avatar-overlay img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    @keyframes pulseActive {
+      0% { transform: scale(1); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3); }
+      50% { transform: scale(1.04); box-shadow: 0 12px 32px rgba(255, 255, 255, 0.4); }
+      100% { transform: scale(1); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3); }
+    }
+
+    .scroll-arrow-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin: 10px 0;
+      font-size: 14px;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.7);
+      animation: bounceArrow 2s infinite ease-in-out;
+    }
+
+    @keyframes bounceArrow {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(8px); }
+    }
+
+    /* ── Right Panel ── */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      height: calc(100vh - 40px);
+      position: sticky;
+      top: 20px;
+    }
+
+    .daily-misi-card {
+      background: var(--bg-dark-panel);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 15px 35px rgba(10, 34, 60, 0.25);
+    }
+
+    .misi-header {
+      font-size: 22px;
+      font-weight: 900;
+      margin-bottom: 20px;
+    }
+
+    .misi-container {
+      display: flex;
+      gap: 15px;
+    }
+
+    .misi-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-grow: 1;
+    }
+
+    .misi-item {
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      padding: 12px 18px;
+      border-radius: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 800;
+      transition: all 0.35s ease;
+      cursor: pointer;
+    }
+
+    .misi-item:hover {
+      transform: scale(1.02);
+    }
+
+    .misi-item.completed {
+      background: var(--green-completed);
+      color: var(--text-white);
+      box-shadow: 0 6px 15px rgba(46, 189, 89, 0.35);
+    }
+
+    .misi-arrow {
+      font-weight: 900;
+      font-size: 12px;
+    }
+
+    /* Streak Gift Box Card */
+    .streak-reward-box {
+      width: 100px;
+      background: linear-gradient(135deg, #7f53ac, #647ded);
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 8px;
+      gap: 12px;
+      box-shadow: 0 10px 20px rgba(100, 125, 237, 0.25);
+      flex-shrink: 0;
+    }
+
+    .streak-header {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+
+    .gift-pixel-art {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gift-pixel-art svg {
+      width: 100%;
+      height: 100%;
+      fill: #fff;
+    }
+
+    .streak-count-text {
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    /* Additional user info card */
+    .info-card {
+      background: var(--bg-dark-panel);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 15px 35px rgba(10, 34, 60, 0.25);
+    }
+
+    .info-card h3 {
+      font-size: 18px;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+
+    .info-stats-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .info-stat-box {
+      background: rgba(255,255,255,0.06);
+      border-radius: 14px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .info-stat-val {
+      font-size: 22px;
+      font-weight: 900;
+      color: #64b5f6;
+    }
+
+    .info-stat-lbl {
+      font-size: 11px;
+      font-weight: 800;
+      opacity: 0.7;
+      text-transform: uppercase;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 1120px) {
+      .dashboard-container {
+        grid-template-columns: 1fr;
+      }
+      .sidebar, .right-panel {
+        height: auto;
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="dashboard-container">
+  
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo-container">
+      <img src="/logo.png" alt="EngPersona Logo">
+      <div class="sidebar-brand-name">engpersona</div>
+    </div>
+
+    <nav class="sidebar-menu">
+      <a class="menu-item active" href="/dashboard">Home</a>
+      <a class="menu-item" href="/exercise/start">Belajar</a>
+      <a class="menu-item" href="/history">Score</a>
+      <a class="menu-item" href="/review">Profil</a>
+    </nav>
+
+    <form action="/logout" method="POST" class="logout-form">
+      <button type="submit" class="logout-btn-pill">Log-out</button>
+    </form>
+  </aside>
+
+  <!-- CENTER CONTENT -->
+  <main class="center-content">
+    <button class="mulai-btn-pill" id="btnMulai">Mulai</button>
+
+    <!-- LEVEL MUDAH (Easy: Stages 1-4) -->
+    <section class="level-section" id="sectionMudah">
+      <div class="level-title-banner">Level Mudah</div>
+      <div class="path-container">
+        <!-- SVG Connecting line -->
+        <svg class="path-line-svg"><path d="M 100,0 C 170,80 170,120 100,200 C 30,280 30,320 100,400 C 170,480 170,520 100,600" /></svg>
+
+        <!-- Stage 1 -->
+        <div class="path-node-wrapper pos-left" data-stage="1" data-global-level="1">
+          <div class="node-circle" id="node-1">
+            <span class="node-number-label">1</span>
+          </div>
+        </div>
+
+        <!-- Stage 2 -->
+        <div class="path-node-wrapper pos-right" data-stage="2" data-global-level="2">
+          <div class="node-circle" id="node-2">
+            <span class="node-number-label">2</span>
+          </div>
+        </div>
+
+        <!-- Stage 3 -->
+        <div class="path-node-wrapper pos-left" data-stage="3" data-global-level="3">
+          <div class="node-circle" id="node-3">
+            <span class="node-number-label">3</span>
+          </div>
+        </div>
+
+        <!-- Stage 4 -->
+        <div class="path-node-wrapper pos-right" data-stage="4" data-global-level="4">
+          <div class="node-circle" id="node-4">
+            <span class="node-number-label">4</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scroll Indicator -->
+    <div class="scroll-arrow-indicator">
+      <span>Scroll ke Level Sedang</span>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+    </div>
+
+    <!-- LEVEL SEDANG (Medium: Stages 1-4) -->
+    <section class="level-section" id="sectionSedang">
+      <div class="level-title-banner">Level Sedang</div>
+      <div class="path-container">
+        <svg class="path-line-svg"><path d="M 100,0 C 170,80 170,120 100,200 C 30,280 30,320 100,400 C 170,480 170,520 100,600" /></svg>
+
+        <!-- Stage 1 -->
+        <div class="path-node-wrapper pos-left" data-stage="1" data-global-level="5">
+          <div class="node-circle" id="node-5">
+            <span class="node-number-label">1</span>
+          </div>
+        </div>
+
+        <!-- Stage 2 -->
+        <div class="path-node-wrapper pos-right" data-stage="2" data-global-level="6">
+          <div class="node-circle" id="node-6">
+            <span class="node-number-label">2</span>
+          </div>
+        </div>
+
+        <!-- Stage 3 -->
+        <div class="path-node-wrapper pos-left" data-stage="3" data-global-level="7">
+          <div class="node-circle" id="node-7">
+            <span class="node-number-label">3</span>
+          </div>
+        </div>
+
+        <!-- Stage 4 -->
+        <div class="path-node-wrapper pos-right" data-stage="4" data-global-level="8">
+          <div class="node-circle" id="node-8">
+            <span class="node-number-label">4</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- RIGHT PANEL -->
+  <aside class="right-panel">
+    
+    <!-- DAILY MISSION CARD -->
+    <section class="daily-misi-card">
+      <div class="misi-header">Daily Misi</div>
+      <div class="misi-container">
+        <div class="misi-list" id="misiList">
+          <!-- Dynamically populated or statically rendered EJS -->
+        </div>
+
+        <!-- Streak Reward box -->
+        <div class="streak-reward-box">
+          <div class="streak-header">&#x2756; str...</div>
+          <div class="gift-pixel-art">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 8h18v4H3zm1 4h16v8H4zm6-8h4v4h-4zm-5 1a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v1H5zm10 0a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v1h-5z"/>
+            </svg>
+          </div>
+          <div class="streak-count-text" id="streakCount">Streak <%= user.streak || 0 %></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- User stats card -->
+    <section class="info-card">
+      <h3>Profil Belajar</h3>
+      <div class="info-stats-row">
+        <div class="info-stat-box">
+          <div class="info-stat-val"><%= user.xp || 0 %></div>
+          <div class="info-stat-lbl">Total XP</div>
+        </div>
+        <div class="info-stat-box">
+          <div class="info-stat-val"><%= user.level || 1 %></div>
+          <div class="info-stat-lbl">Level User</div>
+        </div>
+      </div>
+      <div style="font-size: 14px; opacity: 0.85; line-height: 1.5;">
+        <p>Karakter: <strong><%= user.learning_character || 'Belum ditentukan' %></strong></p>
+        <p style="margin-top: 4px;">Hasil terakhir: <strong><%= latestResult ? latestResult.score : 0 %> XP</strong></p>
+      </div>
+    </section>
+  </aside>
+
+</div>
+
+<script>
+  // User progress data injected from EJS
+  const userLevel = parseInt("<%= user.level || 1 %>", 10);
+  const avatarUrl = "/<%= user.avatar || 'icon2.jpg' %>";
+
+  // Daily missions state stored in localStorage or local script session
+  const defaultMissions = [
+    { id: 1, text: "Login harian", completed: true },
+    { id: 2, text: "Dapatkan 10xp!", completed: false },
+    { id: 3, text: "Selesaikan 5 soal!", completed: false },
+    { id: 4, text: "Selesaikan 3 misi", completed: false }
+  ];
+
+  let missions = [];
+  try {
+    const cached = localStorage.getItem('engpersona_missions');
+    if (cached) {
+      missions = JSON.parse(cached);
+    } else {
+      missions = defaultMissions;
+    }
+  } catch(e) {
+    missions = defaultMissions;
+  }
+
+  // Render missions
+  function renderMissions() {
+    const listContainer = document.getElementById('misiList');
+    listContainer.innerHTML = '';
+
+    missions.forEach(mission => {
+      const item = document.createElement('div');
+      item.className = `misi-item ${mission.completed ? 'completed' : ''}`;
+      item.onclick = () => completeMission(mission.id);
+
+      item.innerHTML = `
+        <span>${mission.text}</span>
+        <span class="misi-arrow">&gt;&gt;</span>
+      `;
+      listContainer.appendChild(item);
+    });
+  }
+
+  // Complete mission function exposed globally
+  window.completeMission = function(id) {
+    missions = missions.map(m => {
+      if (m.id === id) {
+        return { ...m, completed: !m.completed };
+      }
+      return m;
+    });
+    localStorage.setItem('engpersona_missions', JSON.stringify(missions));
+    renderMissions();
+  };
+
+  // Setup path level stages
+  function renderPath() {
+    // Level Mudah: levels 1-4
+    // Level Sedang: levels 5-8
+    const nodes = document.querySelectorAll('.path-node-wrapper');
+
+    // Remove active overlays first
+    document.querySelectorAll('.active-avatar-overlay').forEach(el => el.remove());
+
+    nodes.forEach(node => {
+      const globalLevelVal = parseInt(node.dataset.globalLevel, 10);
+      const circle = node.querySelector('.node-circle');
+      
+      // Clear old state classes
+      circle.className = 'node-circle';
+
+      if (globalLevelVal < userLevel) {
+        // Already completed stage
+        circle.classList.add('state-completed');
+      } else if (globalLevelVal === userLevel) {
+        // Active stage
+        circle.classList.add('state-active');
+
+        // Create avatar overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'active-avatar-overlay';
+        overlay.innerHTML = `<img src="${avatarUrl}" alt="Avatar">`;
+        circle.appendChild(overlay);
+      } else {
+        // Locked stage
+        circle.classList.add('state-locked');
+      }
+
+      // Handle Node click action
+      circle.onclick = (e) => {
+        // Do not trigger parent click
+        e.stopPropagation();
+
+        if (globalLevelVal <= userLevel) {
+          window.location.href = `/exercise/start?level=${globalLevelVal}`;
+        } else {
+          // Play shake effect on locked item
+          circle.style.transform = 'scale(0.9)';
+          setTimeout(() => {
+            circle.style.transform = '';
+          }, 150);
+        }
+      };
+    });
+
+    // Handle lock state for Level Sedang section
+    const sectionSedang = document.getElementById('sectionSedang');
+    if (userLevel < 5) {
+      sectionSedang.classList.add('locked');
+    } else {
+      sectionSedang.classList.remove('locked');
+    }
+  }
+
+  // Handle CTA Mulai Button Click
+  document.getElementById('btnMulai').onclick = function() {
+    // Starts the exercise of the current active user level
+    window.location.href = `/exercise/start?level=${userLevel}`;
+  };
+
+  // Initial calls
+  renderMissions();
+  renderPath();
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+﻿<div class="card ep-card">
+  <div class="card-body p-4">
+    <h3 class="fw-bold mb-3">Riwayat Latihan</h3>
+
+    <% if (results.length === 0) { %>
+      <div class="alert alert-info mb-0">Belum ada riwayat latihan.</div>
+    <% } else { %>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Skor</th>
+              <th>XP</th>
+              <th>Karakter Belajar</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% results.forEach(function(result) { %>
+              <tr>
+                <td><%= result.dateLabel %></td>
+                <td><%= result.score %></td>
+                <td><%= result.xp %></td>
+                <td><%= result.character %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <nav aria-label="pagination">
+        <ul class="pagination mb-0">
+          <li class="page-item <%= pagination.hasPrev ? '' : 'disabled' %>">
+            <a class="page-link" href="/history?page=<%= pagination.page - 1 %>">Previous</a>
+          </li>
+          <li class="page-item disabled"><span class="page-link">Page <%= pagination.page %> / <%= pagination.totalPages %></span></li>
+          <li class="page-item <%= pagination.hasNext ? '' : 'disabled' %>">
+            <a class="page-link" href="/history?page=<%= pagination.page + 1 %>">Next</a>
+          </li>
+        </ul>
+      </nav>
+    <% } %>
+  </div>
+</div>

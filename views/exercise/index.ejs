@@ -1,0 +1,113 @@
+<div class="exercise-workspace">
+  <aside class="exercise-sidebar" aria-label="Navigasi Soal Latihan">
+    <a class="exercise-mark" href="/dashboard" aria-label="EngPersona Home">
+      <img src="/logo.png" alt="EngPersona Logo">
+      <div class="exercise-brand-name">engpersona</div>
+    </a>
+
+    <nav class="exercise-menu" aria-label="Menu utama">
+      <a class="exercise-menu-item" href="/dashboard">Home</a>
+      <a class="exercise-menu-item active" href="/exercise/start">Belajar</a>
+      <a class="exercise-menu-item" href="/history">Score</a>
+      <a class="exercise-menu-item" href="/dashboard">Profil</a>
+    </nav>
+
+    <form action="/logout" method="POST" class="exercise-exit-form">
+      <button class="exercise-exit" type="submit">Keluar dari Soal Latihan</button>
+    </form>
+  </aside>
+
+  <section class="exercise-panel" aria-label="Soal Latihan">
+    <div class="exercise-card">
+      <div class="exercise-card-header">
+        <span>Soal <%= currentIndex %> dari <%= totalQuestions %></span>
+        <span class="exercise-skip">Skip</span>
+      </div>
+
+      <div class="exercise-progress" role="progressbar" aria-valuenow="<%= progressPercent %>" aria-valuemin="0" aria-valuemax="100">
+        <span style="width: <%= progressPercent %>%"></span>
+      </div>
+
+      <% if (feedbackMessage) { %>
+        <div class="exercise-feedback <%= feedbackType || 'info' %>"><%= feedbackMessage %></div>
+      <% } %>
+
+      <%
+        const questionParts = String(question.question || '').split('______');
+      %>
+      <h1 class="exercise-question" id="questionText">
+        <% questionParts.forEach(function(part, index) { %>
+          <%= part %>
+          <% if (index < questionParts.length - 1) { %>
+            <span class="answer-blank" data-answer-blank>______</span>
+          <% } %>
+        <% }); %>
+      </h1>
+
+      <form action="/exercise" method="POST" id="exerciseForm" class="exercise-form">
+        <% if (question.option_a && question.option_b && question.option_c && question.option_d) { %>
+          <div class="exercise-options">
+            <% ['a', 'b', 'c', 'd'].forEach(function(opt) { const value = question['option_' + opt]; %>
+              <label class="answer-option exercise-option">
+                <input type="radio" name="answer" value="<%= value %>" required>
+                <span class="exercise-radio" aria-hidden="true"></span>
+                <span class="exercise-option-text"><%= opt.toUpperCase() %>. <%= value %></span>
+              </label>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <input type="text" name="answer" class="exercise-text-answer" placeholder="Ketik jawaban..." required>
+        <% } %>
+
+        <button class="exercise-next" type="submit">Next</button>
+      </form>
+    </div>
+  </section>
+</div>
+
+<script>
+  document.body.classList.add('exercise-focus-page');
+
+  const exerciseForm = document.getElementById('exerciseForm');
+
+  if (exerciseForm) {
+    exerciseForm.addEventListener('submit', (event) => {
+      const selectedAnswer = exerciseForm.querySelector('input[name="answer"]:checked');
+      const typedAnswer = exerciseForm.querySelector('input[name="answer"][type="text"]');
+      const answerValue = selectedAnswer ? selectedAnswer.value : typedAnswer ? typedAnswer.value.trim() : '';
+      const blanks = document.querySelectorAll('[data-answer-blank]');
+
+      if (!answerValue || blanks.length === 0 || exerciseForm.dataset.submitting === 'true') {
+        return;
+      }
+
+      event.preventDefault();
+      exerciseForm.dataset.submitting = 'true';
+
+      if (selectedAnswer) {
+        selectedAnswer.closest('.answer-option')?.classList.add('is-sending');
+      }
+
+      const submittedAnswer = document.createElement('input');
+      submittedAnswer.type = 'hidden';
+      submittedAnswer.name = 'answer';
+      submittedAnswer.value = answerValue;
+      exerciseForm.appendChild(submittedAnswer);
+
+      blanks.forEach((blank) => {
+        blank.textContent = answerValue;
+        blank.classList.add('is-filled');
+      });
+
+      exerciseForm.querySelectorAll('input, button').forEach((control) => {
+        if (control !== submittedAnswer) {
+          control.disabled = true;
+        }
+      });
+
+      window.setTimeout(() => {
+        exerciseForm.submit();
+      }, 650);
+    });
+  }
+</script>

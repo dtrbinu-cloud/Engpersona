@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - EngPersona</title>
+  <link rel="icon" type="image/jpeg" href="/wbicon.jpg">
+  <link rel="stylesheet" href="/engpersona-ui.css">
+</head>
+<body>
+  <main class="auth-screen register-screen">
+    <img class="ep-logo-img auth-corner-logo" src="/logo.png" alt="EngPersona">
+    <a class="ep-logo-text auth-brand" href="/">EngPersona</a>
+
+    <section class="auth-card" aria-label="Register">
+      <h1>Register</h1>
+
+      <% if (fieldErrors.username || fieldErrors.password || fieldErrors.password_confirmation) { %>
+        <div class="form-error">
+          <%= fieldErrors.username || fieldErrors.password || fieldErrors.password_confirmation %>
+        </div>
+      <% } %>
+
+      <form action="/register" method="POST" class="auth-form">
+        <input
+          class="auth-input"
+          type="text"
+          name="username"
+          value="<%= oldInput.username || '' %>"
+          placeholder="Email"
+          required>
+        <input
+          class="auth-input"
+          type="password"
+          name="password"
+          placeholder="Password"
+          required>
+        <input
+          class="auth-input"
+          type="password"
+          name="password_confirmation"
+          placeholder="Konfirmasi Password"
+          required>
+        <button class="auth-submit register-submit" type="submit">Register</button>
+      </form>
+
+      <p class="auth-foot">Sudah Punya Akun? <a href="/login">Login</a></p>
+    </section>
+  </main>
+</body>
+</html>
