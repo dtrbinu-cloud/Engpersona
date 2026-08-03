@@ -328,6 +328,7 @@ app.set('layout', 'layout');
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 
 app.use(
   session({
@@ -994,6 +995,88 @@ app.get(
       layout: false,
       user: req.user,
       totalResults: Number(totalResults.total || 0),
+    });
+  }),
+);
+
+app.post(
+  '/review/update-profile',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const username = String(req.body.username || req.user.username || '').trim();
+    const email = String(req.body.email || req.user.email || '').trim();
+    const avatar = String(req.body.avatar || req.user.avatar || '').trim();
+
+    if (!username) {
+      return res.status(400).json({ success: false, message: 'Username tidak boleh kosong.' });
+    }
+
+    const existing = db.get('SELECT id FROM users WHERE username = :username AND id != :id', {
+      ':username': username,
+      ':id': req.user.id,
+    });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Username sudah dipakai oleh pengguna lain.' });
+    }
+
+    const now = nowIso();
+    await db.run(
+      `UPDATE users SET username = :username, email = :email, avatar = :avatar, updated_at = :updated_at WHERE id = :id`,
+      {
+        ':username': username,
+        ':email': email,
+        ':avatar': avatar,
+        ':updated_at': now,
+        ':id': req.user.id,
+      },
+    );
+
+    return res.json({
+      success: true,
+      message: 'Profil berhasil disimpan!',
+      user: { username, email, avatar },
+    });
+  }),
+);
+
+app.post(
+  '/review/update-password',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const currentPassword = String(req.body.current_password || '');
+    const newPassword = String(req.body.new_password || '');
+    const confirmPassword = String(req.body.confirm_password || '');
+
+    if (!currentPassword) {
+      return res.status(400).json({ success: false, message: 'Konfirmasi password saat ini (lama) diperlukan.' });
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, req.user.password);
+    if (!isValid) {
+      return res.status(400).json({ success: false, message: 'Password saat ini salah! Verifikasi gagal.' });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password baru minimal 6 karakter.' });
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Konfirmasi password baru tidak sesuai.' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await db.run(
+      'UPDATE users SET password = :password, updated_at = :updated_at WHERE id = :id',
+      {
+        ':password': hashed,
+        ':updated_at': nowIso(),
+        ':id': req.user.id,
+      },
+    );
+
+    return res.json({
+      success: true,
+      message: 'Password baru berhasil dikonfirmasi dan disimpan secara otomatis!',
     });
   }),
 );
