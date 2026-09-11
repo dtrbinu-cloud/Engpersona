@@ -1,0 +1,16 @@
+const bcrypt = require('bcryptjs');
+const users = require('../repositories/userRepository');
+const refreshTokens = require('../repositories/refreshTokenRepository');
+const userResource = require('../resources/userResource');
+const { credentials } = require('../requests/apiAuthRequest');
+const { createAccessToken, createRefreshToken, hashRefreshToken, refreshExpiry } = require('../services/tokenService');
+const jwtConfig = require('../config/jwt');
+
+function refreshCookieOptions() { return { httpOnly:true, secure:process.env.NODE_ENV === 'production', sameSite:'lax', path:'/api/v1/auth', maxAge:jwtConfig.refreshDays * 86400000 }; }
+function readCookie(req, name) { const pair = String(req.headers.cookie || '').split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`)); return pair ? decodeURIComponent(pair.slice(name.length + 1)) : null; }
+async function issueTokens(res, user) { const refreshToken = createRefreshToken(); await refreshTokens.create(user.id, hashRefreshToken(refreshToken), refreshExpiry()); res.cookie('refresh_token', refreshToken, refreshCookieOptions()); return { accessToken:createAccessToken(user), tokenType:'Bearer', expiresIn:jwtConfig.accessExpiresIn, user:userResource(user) }; }
+async function register(req, res) { const input = credentials(req.body, true); if (Object.keys(input.errors).length) return res.status(422).json({ success:false, errors:input.errors }); if (users.byUsername(input.username)) return res.status(422).json({ success:false, errors:{ username:'Username sudah dipakai.' } }); await users.create({ username:input.username, password:await bcrypt.hash(input.password, 10) }); const user = users.byUsername(input.username); return res.status(201).json({ success:true, data:await issueTokens(res, user) }); }
+async function login(req, res) { const input = credentials(req.body); if (!input.username || !input.password) return res.status(422).json({ success:false, message:'Username dan password wajib diisi.' }); const user=users.byUsername(input.username); if (!user || !(await bcrypt.compare(input.password, user.password))) return res.status(401).json({ success:false, message:'Username atau password salah.' }); return res.json({ success:true, data:await issueTokens(res, user) }); }
+async function refresh(req, res) { const raw=readCookie(req, 'refresh_token'); if (!raw) return res.status(401).json({ success:false, message:'Refresh token tidak ditemukan.' }); const stored=refreshTokens.activeByHash(hashRefreshToken(raw)); if (!stored) return res.status(401).json({ success:false, message:'Refresh token tidak valid atau kedaluwarsa.' }); await refreshTokens.revoke(stored.id); const user=users.byId(stored.user_id); if (!user) return res.status(401).json({ success:false, message:'Pengguna tidak ditemukan.' }); return res.json({ success:true, data:await issueTokens(res, user) }); }
+async function logout(req, res) { const raw=readCookie(req, 'refresh_token'); if (raw) { const stored=refreshTokens.activeByHash(hashRefreshToken(raw)); if (stored) await refreshTokens.revoke(stored.id); } res.clearCookie('refresh_token', refreshCookieOptions()); return res.status(204).send(); }
+module.exports = { register, login, refresh, logout };

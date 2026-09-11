@@ -1,0 +1,1 @@
+module.exports = (user) => user && ({ id:user.id, username:user.username, name:user.name, email:user.email, avatar:user.avatar, xp:Number(user.xp||0), level:Number(user.level||1), streak:Number(user.streak||0), learningCharacter:user.learning_character });

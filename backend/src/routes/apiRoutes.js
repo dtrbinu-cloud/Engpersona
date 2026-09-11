@@ -1,0 +1,18 @@
+const express = require('express');
+const controller = require('../controllers/apiController');
+const { requireApiAuth } = require('../middleware/apiAuth');
+const asyncHandler = require('../utils/asyncHandler');
+const router = express.Router();
+const auth = require('../controllers/apiAuthController');
+router.post('/auth/register', asyncHandler(auth.register));
+router.post('/auth/login', asyncHandler(auth.login));
+router.post('/auth/refresh', asyncHandler(auth.refresh));
+router.post('/auth/logout', asyncHandler(auth.logout));
+router.use(requireApiAuth);
+router.get('/me', controller.me);
+router.patch('/me', asyncHandler(controller.updateProfile));
+router.patch('/me/playlist', asyncHandler(controller.updatePlaylist));
+router.get('/results', controller.listResults);
+router.get('/results/latest', controller.latestResult);
+router.get('/questions', controller.listQuestions);
+module.exports = router;

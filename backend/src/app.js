@@ -8,13 +8,13 @@ const flash = require('connect-flash');
 const bcrypt = require('bcryptjs');
 const expressLayouts = require('express-ejs-layouts');
 
-const db = require('./lib/db');
+const db = require('./database/db');
 const { requireAuth, requireGuest } = require('./middleware/auth');
 
 const app = express();
 
 function loadEnvFile() {
-  const envPath = path.join(__dirname, '..', '.env');
+  const envPath = path.join(__dirname, '..', '..', '.env');
   if (!fs.existsSync(envPath)) return;
 
   const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
@@ -322,11 +322,11 @@ async function resolveQuestionIds(difficulty, stage) {
 }
 
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, '..', 'views'));
+app.set('views', path.join(__dirname, '..', '..', 'frontend', 'views'));
 app.use(expressLayouts);
 app.set('layout', 'layout');
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', '..', 'frontend', 'public')));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -361,6 +361,8 @@ app.use(
     next();
   }),
 );
+
+app.use('/api/v1', require('./routes/apiRoutes'));
 
 app.get(
   '/',
@@ -741,7 +743,9 @@ app.get(
   '/exercise/start',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const globalLevel = Math.max(Number.parseInt(req.query.level || '0', 10) || 0, 0);
+    const requestedLevel = Math.max(Number.parseInt(req.query.level || '0', 10) || 0, 0);
+    // Tanpa parameter, latihan dimulai dari level aktif pengguna.
+    const globalLevel = requestedLevel || Math.max(Number(req.user.level || 1), 1);
 
     let difficulty = 'easy';
     let stage = 1;
@@ -765,7 +769,7 @@ app.get(
       question_ids: questionIds,
       difficulty,
       stage,
-      global_level: globalLevel > 0 ? globalLevel : null,
+      global_level: globalLevel,
       current_index: 0,
       correct_count: 0,
       wrong_count: 0,
@@ -903,7 +907,12 @@ app.post(
       const resultId = insertResult.lastInsertRowid;
 
       const newXp = Number(req.user.xp || 0) + Number(exercise.xp_earned || 0);
-      const newLevel = Math.floor(newXp / 100) + 1;
+      // Progress peta ditentukan oleh satu set soal level yang telah selesai,
+      // bukan oleh jumlah jawaban benar atau XP. Ini juga menjaga level saat replay.
+      const completedLevel = Number(exercise.global_level || 0);
+      const newLevel = completedLevel > 0
+        ? Math.max(Number(req.user.level || 1), completedLevel + 1)
+        : Math.floor(newXp / 100) + 1;
 
       await db.run(
         'UPDATE users SET xp = :xp, level = :level, learning_character = :learning_character, updated_at = :updated_at WHERE id = :id',
@@ -1186,9 +1195,11 @@ app.use((error, req, res, next) => {
   );
 });
 
-(async () => {
-  await db.initDatabase(path.join(__dirname, '..', 'data', 'database.sqlite'));
-  app.listen(PORT, () => {
+async function start() {
+  await db.initDatabase(path.join(__dirname, '..', '..', 'data', 'database.sqlite'));
+  return app.listen(PORT, () => {
     console.log(`EngPersona Node.js running at http://localhost:${PORT}`);
   });
-})();
+}
+
+module.exports = { app, start };

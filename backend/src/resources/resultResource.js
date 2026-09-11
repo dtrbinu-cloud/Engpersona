@@ -1,0 +1,1 @@
+module.exports = (result) => result && ({ id:result.id, score:result.score, xp:result.xp, character:result.character, totalQuestions:result.total_questions, date:result.date, scores:{ grammar:result.grammar_score, vocabulary:result.vocabulary_score, context:result.context_score } });
