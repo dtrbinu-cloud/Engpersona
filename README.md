@@ -11,6 +11,14 @@ npm start
 
 Aplikasi berjalan di `http://localhost:3000`.
 
+## Daftar / login dengan Google
+
+Tombol **Daftar dengan Google** akan membuat akun baru secara otomatis untuk email Google yang belum ada; akun yang sudah ada akan masuk ke akun yang sama.
+
+1. Di Google Cloud Console, buat OAuth Client ID dengan tipe **Web application**.
+2. Tambahkan `http://localhost:3000/auth/google/callback` ke **Authorized redirect URIs**.
+3. Salin `.env.example` menjadi `.env`, lalu isi `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET`.
+
 ## Data
 
 Database menggunakan file SQLite: `data/database.sqlite`.

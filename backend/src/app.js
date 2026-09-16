@@ -541,14 +541,17 @@ app.post(
 );
 
 app.get('/auth/google', requireGuest, (req, res) => {
+  const flow = req.query.flow === 'register' ? 'register' : 'login';
+
   if (!hasGoogleOAuthConfig()) {
     req.flash('form_error', 'Konfigurasi Google OAuth belum lengkap.');
-    return res.redirect('/login');
+    return res.redirect(flow === 'register' ? '/register' : '/login');
   }
 
   const config = googleOAuthConfig();
   const state = crypto.randomBytes(24).toString('hex');
   req.session.googleOAuthState = state;
+  req.session.googleOAuthFlow = flow;
 
   const params = new URLSearchParams({
     client_id: config.clientId,
@@ -579,11 +582,13 @@ app.get(
     const code = String(req.query.code || '');
     const state = String(req.query.state || '');
     const expectedState = req.session.googleOAuthState;
+    const flow = req.session.googleOAuthFlow === 'register' ? 'register' : 'login';
     delete req.session.googleOAuthState;
+    delete req.session.googleOAuthFlow;
 
     if (!code || !state || !expectedState || state !== expectedState) {
       req.flash('form_error', 'Login Google tidak valid. Silakan coba lagi.');
-      return res.redirect('/login');
+      return res.redirect(flow === 'register' ? '/register' : '/login');
     }
 
     const token = await exchangeGoogleCode(code);
@@ -594,7 +599,7 @@ app.get(
 
     if (!googleId || !email) {
       req.flash('form_error', 'Akun Google tidak mengirim email yang valid.');
-      return res.redirect('/login');
+      return res.redirect(flow === 'register' ? '/register' : '/login');
     }
 
     let user = db.get('SELECT * FROM users WHERE google_id = :google_id', { ':google_id': googleId });
@@ -784,6 +789,11 @@ app.get(
     res.redirect('/exercise');
   }),
 );
+
+app.all('/exercise/exit', requireAuth, (req, res) => {
+  delete req.session.exercise;
+  res.redirect('/dashboard');
+});
 
 app.get(
   '/exercise',
