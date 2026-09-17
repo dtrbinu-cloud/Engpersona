@@ -417,6 +417,8 @@ input {
 
 .exercise-focus-page {
   background: linear-gradient(135deg, #164f82 0%, #2f78bd 46%, #6c8cff 100%);
+  height: 100vh;
+  overflow: hidden;
 }
 
 .exercise-focus-page .navbar {
@@ -426,13 +428,17 @@ input {
 .exercise-focus-page > main.container {
   width: 100%;
   max-width: none;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   padding: 0;
 }
 
 .exercise-workspace {
-  min-height: 100vh;
-  padding: clamp(34px, 5vh, 64px) clamp(46px, 5vw, 86px);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(14px, 2.6vh, 24px) clamp(46px, 5vw, 86px) clamp(22px, 3.5vh, 34px);
   display: grid;
   grid-template-columns: 312px minmax(0, 1fr);
   align-items: center;
@@ -443,12 +449,12 @@ input {
 
 .exercise-sidebar {
   width: 312px;
-  min-height: min(620px, calc(100vh - 120px));
-  transform: translateY(-50px);
+  min-height: min(560px, calc(100vh - 56px));
+  transform: translateY(-12px);
   border-radius: 22px;
   background: #0f4165;
   box-shadow: 0 28px 60px rgba(7, 32, 58, 0.26);
-  padding: 32px 24px 24px;
+  padding: 26px 24px 22px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -458,14 +464,14 @@ input {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 40px;
+  margin-bottom: 30px;
   text-decoration: none;
 }
 
 .exercise-mark img {
-  width: 100px;
+  width: 88px;
   height: auto;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .exercise-brand-name {
@@ -478,11 +484,11 @@ input {
 .exercise-menu {
   width: 100%;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .exercise-menu-item {
-  min-height: 56px;
+  min-height: 52px;
   border-radius: 18px;
   background: #e4e6ea;
   color: #050914;
@@ -527,15 +533,16 @@ input {
   justify-content: flex-start;
   align-items: center;
   min-width: 0;
+  transform: translateY(-12px);
 }
 
 .exercise-card {
   width: min(900px, 100%);
-  min-height: min(520px, calc(100vh - 120px));
+  min-height: min(500px, calc(100vh - 56px));
   border-radius: 18px;
   background: #fbfbfc;
   box-shadow: 0 26px 70px rgba(7, 32, 58, 0.2);
-  padding: 44px 48px 38px;
+  padding: 36px 48px 28px;
 }
 
 .exercise-card-header {
@@ -558,7 +565,7 @@ input {
   border-radius: 999px;
   background: #dedfe2;
   overflow: hidden;
-  margin-bottom: 34px;
+  margin-bottom: 26px;
 }
 
 .exercise-progress span {
@@ -578,7 +585,7 @@ input {
 }
 
 .exercise-question {
-  margin: 0 0 28px;
+  margin: 0 0 24px;
   color: #252934;
   font-size: 24px;
   line-height: 1.45;
@@ -606,17 +613,17 @@ input {
 
 .exercise-form {
   display: grid;
-  gap: 34px;
+  gap: 26px;
 }
 
 .exercise-options {
   width: min(640px, 100%);
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .exercise-option {
-  min-height: 46px;
+  min-height: 44px;
   border-radius: 999px;
   background: #dedfe1;
   color: #252934;
@@ -775,8 +782,21 @@ input {
 }
 
 @media (max-width: 820px) {
-  .exercise-workspace {
+  .exercise-focus-page {
     min-height: 100vh;
+    overflow: auto;
+  }
+
+  .exercise-focus-page > main.container {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .exercise-workspace {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
     grid-template-columns: 1fr;
     align-items: stretch;
     gap: 20px;
@@ -818,6 +838,10 @@ input {
   .exercise-card {
     min-height: auto;
     padding: 24px 18px;
+  }
+
+  .exercise-panel {
+    transform: none;
   }
 
   .exercise-options,

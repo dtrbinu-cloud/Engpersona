@@ -224,6 +224,42 @@ function buildEmbedUrl(url) {
   return `https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator`;
 }
 
+const viteDevServer = process.env.VITE_DEV_SERVER || '';
+const viteManifestPath = path.join(__dirname, '..', '..', 'frontend', 'public', 'assets', '.vite', 'manifest.json');
+
+function safeJson(data) {
+  return JSON.stringify(data).replace(/[<>&]/g, (char) => ({
+    '<': '\\u003c',
+    '>': '\\u003e',
+    '&': '\\u0026',
+  }[char]));
+}
+
+function viteTags(entry) {
+  if (viteDevServer) {
+    return [
+      `<script type="module" src="${viteDevServer}/@vite/client"></script>`,
+      `<script type="module" src="${viteDevServer}/${entry}"></script>`,
+    ].join('\n');
+  }
+
+  if (!fs.existsSync(viteManifestPath)) {
+    return '';
+  }
+
+  const manifest = JSON.parse(fs.readFileSync(viteManifestPath, 'utf8'));
+  const asset = manifest[entry];
+  if (!asset) {
+    return '';
+  }
+
+  const cssTags = (asset.css || [])
+    .map((file) => `<link rel="stylesheet" href="/assets/${file}">`)
+    .join('\n');
+  const scriptTag = `<script type="module" src="/assets/${asset.file}"></script>`;
+  return [cssTags, scriptTag].filter(Boolean).join('\n');
+}
+
 const onboardingScreens = {
   level: {
     question: 'Kamu ingin belajar Bahasa Inggris dari mana dulu?',
@@ -350,6 +386,8 @@ app.use(
     res.locals.formError = req.flash('form_error')[0] || null;
     res.locals.fieldErrors = req.flash('field_errors')[0] || {};
     res.locals.oldInput = req.flash('old_input')[0] || {};
+    res.locals.safeJson = safeJson;
+    res.locals.viteTags = viteTags;
 
     if (req.session.userId) {
       req.user = db.get('SELECT * FROM users WHERE id = :id', { ':id': req.session.userId });
@@ -591,8 +629,19 @@ app.get(
       return res.redirect(flow === 'register' ? '/register' : '/login');
     }
 
-    const token = await exchangeGoogleCode(code);
-    const profile = await getGoogleProfile(token.access_token);
+    let profile;
+    try {
+      const token = await exchangeGoogleCode(code);
+      profile = await getGoogleProfile(token.access_token);
+    } catch (error) {
+      console.error('[OAuth] Login Google gagal:', error.message);
+      req.flash(
+        'form_error',
+        'Login Google gagal karena koneksi ke Google tidak tersedia. Coba lagi, atau login dengan email dan password.',
+      );
+      return res.redirect(flow === 'register' ? '/register' : '/login');
+    }
+
     const googleId = String(profile.id || '').trim();
     const email = String(profile.email || '').trim().toLowerCase();
     const name = String(profile.name || email || 'Pengguna Google').trim();
