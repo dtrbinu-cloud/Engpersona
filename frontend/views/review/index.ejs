@@ -305,11 +305,17 @@
     }
 
     .toast-banner {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      z-index: 1000;
+      width: min(440px, calc(100vw - 40px));
       padding: 0.8rem 1.2rem;
       border-radius: 12px;
       font-size: 0.95rem;
       font-weight: 700;
-      margin-bottom: 1rem;
+      text-align: center;
+      transform: translateX(-50%);
       display: none;
       animation: fadeUp 0.3s ease;
     }
