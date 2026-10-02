@@ -182,7 +182,7 @@
       width: min(300px, 100%);
       border-radius: 12px;
       padding: 10px 14px;
-      background: rgba(255, 255, 255, 0.24);
+      background: #dc2626;
       color: #fff;
       font-size: 13px;
       font-weight: 700;
@@ -237,7 +237,7 @@
       <form action="/profile-setup" method="POST" class="profile-form" id="profileForm">
         <input type="hidden" name="avatar" id="avatarInput" value="icon1.jpg">
         <input
-          class="profile-input"
+          class="profile-input <%= (typeof formError !== 'undefined' && formError) ? 'is-invalid' : '' %>"
           type="text"
           name="display_name"
           value="<%= typeof oldInput !== 'undefined' ? (oldInput.display_name || '') : '' %>"

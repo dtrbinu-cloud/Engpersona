@@ -23,20 +23,20 @@
 
       <form action="/register" method="POST" class="auth-form">
         <input
-          class="auth-input"
+          class="auth-input <%= fieldErrors.username ? 'is-invalid' : '' %>"
           type="text"
           name="username"
           value="<%= oldInput.username || '' %>"
           placeholder="Email"
           required>
         <input
-          class="auth-input"
+          class="auth-input <%= fieldErrors.password ? 'is-invalid' : '' %>"
           type="password"
           name="password"
           placeholder="Password"
           required>
         <input
-          class="auth-input"
+          class="auth-input <%= fieldErrors.password_confirmation ? 'is-invalid' : '' %>"
           type="password"
           name="password_confirmation"
           placeholder="Konfirmasi Password"
