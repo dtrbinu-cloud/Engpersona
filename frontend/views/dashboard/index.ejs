@@ -15,7 +15,7 @@
       --btn-active-bg: #eef3ff;
       --btn-active-text: #2a5cc0;
       --node-locked: #b3c5d7;
-      --node-completed: #2575fc;
+      --node-completed: #2ebd59;
       --node-active-ring: #ffffff;
       --green-completed: #2ebd59;
     }
@@ -261,7 +261,19 @@
 
     .node-circle.state-completed {
       background: var(--node-completed);
-      border: 6px solid #1a64df;
+      border: 6px solid #218f43;
+    }
+
+    .completed-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ffffff;
+      font-size: 34px;
+      font-weight: 900;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+      white-space: nowrap;
     }
 
     .node-circle.state-active {
@@ -720,10 +732,12 @@
       
       // Clear old state classes
       circle.className = 'node-circle';
+      circle.querySelector('.completed-label')?.remove();
 
       if (globalLevelVal < userLevel) {
         // Already completed stage
         circle.classList.add('state-completed');
+        circle.insertAdjacentHTML('beforeend', '<span class="completed-label" aria-label="Selesai">✓</span>');
       } else if (globalLevelVal === userLevel) {
         // Active stage
         circle.classList.add('state-active');
