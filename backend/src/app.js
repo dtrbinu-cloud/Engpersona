@@ -1063,6 +1063,7 @@ app.get(
       layout: false,
       user: req.user,
       totalResults: Number(totalResults.total || 0),
+      canChangePassword: !req.user.google_id,
     });
   }),
 );
@@ -1111,6 +1112,13 @@ app.post(
   '/review/update-password',
   requireAuth,
   asyncHandler(async (req, res) => {
+    if (req.user.google_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akun Google tidak memiliki password aplikasi. Silakan ubah password melalui Google.',
+      });
+    }
+
     const currentPassword = String(req.body.current_password || '');
     const newPassword = String(req.body.new_password || '');
     const confirmPassword = String(req.body.confirm_password || '');
