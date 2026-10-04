@@ -705,6 +705,7 @@
         </div>
 
         <!-- Password -->
+        <% if (canChangePassword) { %>
         <div class="info-block" aria-labelledby="sec-pw">
           <p class="info-title" id="sec-pw">Password</p>
           <div class="info-row">
@@ -713,6 +714,7 @@
             <button class="edit-btn" id="btn-edit-pw" aria-label="Edit password">edit</button>
           </div>
         </div>
+        <% } %>
 
       </div><!-- /dp-content -->
 
@@ -748,6 +750,7 @@
 <!-- ══════════════════
      MODAL EDIT PASSWORD (Perlu konfirmasi password lama)
 ══════════════════ -->
+<% if (canChangePassword) { %>
 <div id="modal-pw" class="modal-overlay hidden">
   <div class="modal-card">
     <h3 class="modal-title">Ganti Password</h3>
@@ -773,6 +776,7 @@
     </div>
   </div>
 </div>
+<% } %>
 
 <script>
   let currentAvatar = "<%= user.avatar || 'icon2.jpg' %>";
@@ -949,6 +953,7 @@
   });
 
   // ── 4. EDIT PASSWORD (MODAL DENGAN KONFIRMASI PASSWORD LAMA) ──
+  <% if (canChangePassword) { %>
   const modalPw = document.getElementById('modal-pw');
   const btnEditPw = document.getElementById('btn-edit-pw');
   const btnCloseModalPw = document.getElementById('btn-close-modal-pw');
@@ -1004,6 +1009,8 @@
   });
 
   /* ── Three-dot menu placeholder ── */
+  <% } %>
+
   document.getElementById('btn-menu-dots').addEventListener('click', function() {
     alert('Opsi tambahan: Bagikan profil, Laporkan masalah.');
   });
