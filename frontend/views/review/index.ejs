@@ -595,7 +595,7 @@
 
 <%
   /* ── Helpers ── */
-  const uName    = user.username || 'nama_user';
+  const uName    = user.name || user.username || 'nama_user';
   const uEmail   = user.email || user.username || 'email_user';
   const initials = String(uName).charAt(0).toUpperCase();
   const avatarSrc = user.avatar ? '/' + user.avatar.replace(/^\//, '') : null;
@@ -677,16 +677,16 @@
         <div class="info-block" aria-labelledby="sec-akun">
           <p class="info-title" id="sec-akun">Akun Info</p>
 
-          <!-- Username Row -->
+          <!-- Display name row -->
           <div class="info-row">
-            <span class="info-label">Username</span>
+            <span class="info-label">Nama</span>
             <span class="info-value" id="disp-username"><%= uName %></span>
             <div id="wrapper-edit-username" class="hidden" style="display: flex; gap: 8px; flex: 1; align-items: center;">
               <input type="text" id="input-username" class="edit-input" value="<%= uName %>">
               <button class="save-btn" id="btn-save-username">Simpan</button>
               <button class="cancel-btn" id="btn-cancel-username">Batal</button>
             </div>
-            <button class="edit-btn" id="btn-edit-username" aria-label="Edit username">edit</button>
+            <button class="edit-btn" id="btn-edit-username" aria-label="Edit nama">edit</button>
           </div>
 
           <hr class="divider">
@@ -795,7 +795,7 @@
     }, 4500);
   }
 
-  // ── 1. EDIT USERNAME ──
+  // ── 1. EDIT DISPLAY NAME ──
   const btnEditUsername = document.getElementById('btn-edit-username');
   const btnSaveUsername = document.getElementById('btn-save-username');
   const btnCancelUsername = document.getElementById('btn-cancel-username');
@@ -837,7 +837,7 @@
         btnEditUsername.classList.remove('hidden');
         showToast(data.message, true);
       } else {
-        showToast(data.message || 'Gagal menyimpan username.', false);
+        showToast(data.message || 'Gagal menyimpan nama.', false);
       }
     } catch (err) {
       showToast('Terjadi kesalahan jaringan.', false);

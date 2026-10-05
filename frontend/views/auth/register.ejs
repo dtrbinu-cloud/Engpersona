@@ -15,19 +15,20 @@
     <section class="auth-card" aria-label="Register">
       <h1>Register</h1>
 
-      <% if (fieldErrors.username || fieldErrors.password || fieldErrors.password_confirmation) { %>
+      <% if (fieldErrors.email || fieldErrors.password || fieldErrors.password_confirmation) { %>
         <div class="form-error">
-          <%= fieldErrors.username || fieldErrors.password || fieldErrors.password_confirmation %>
+          <%= fieldErrors.email || fieldErrors.password || fieldErrors.password_confirmation %>
         </div>
       <% } %>
 
       <form action="/register" method="POST" class="auth-form">
         <input
-          class="auth-input <%= fieldErrors.username ? 'is-invalid' : '' %>"
-          type="text"
-          name="username"
-          value="<%= oldInput.username || '' %>"
+          class="auth-input <%= fieldErrors.email ? 'is-invalid' : '' %>"
+          type="email"
+          name="email"
+          value="<%= oldInput.email || '' %>"
           placeholder="Email"
+          autocomplete="email"
           required>
         <input
           class="auth-input <%= fieldErrors.password ? 'is-invalid' : '' %>"
