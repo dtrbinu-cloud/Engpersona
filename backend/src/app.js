@@ -10,6 +10,7 @@ const expressLayouts = require('express-ejs-layouts');
 
 const db = require('./database/db');
 const { requireAuth, requireGuest } = require('./middleware/auth');
+const { register: validateRegistration } = require('./requests/authRequest');
 
 const app = express();
 
@@ -42,6 +43,7 @@ function loadEnvFile() {
 
 loadEnvFile();
 const PORT = process.env.PORT || 3000;
+const sessionConfig = require('./config/session');
 
 function asyncHandler(fn) {
   return (req, res, next) => {
@@ -367,11 +369,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
 app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'engpersona-secret',
-    resave: false,
-    saveUninitialized: false,
-  }),
+  session(sessionConfig),
 );
 
 app.use(flash());
@@ -452,37 +450,19 @@ app.post(
   '/register',
   requireGuest,
   asyncHandler(async (req, res) => {
-    const username = String(req.body.username || '').trim();
-    const password = String(req.body.password || '');
-    const passwordConfirmation = String(req.body.password_confirmation || '');
+    const input = validateRegistration(req.body);
+    const { username, email, password, errors: fieldErrors } = input;
 
-    const fieldErrors = {};
-    if (!username) {
-      fieldErrors.username = 'Username wajib diisi.';
-    } else if (username.length > 50) {
-      fieldErrors.username = 'Maksimal 50 karakter.';
-    }
-
-    if (!password) {
-      fieldErrors.password = 'Password wajib diisi.';
-    } else if (password.length < 6) {
-      fieldErrors.password = 'Minimal 6 karakter.';
-    }
-
-    if (password !== passwordConfirmation) {
-      fieldErrors.password_confirmation = 'Konfirmasi password tidak cocok.';
-    }
-
-    const existing = username
-      ? db.get('SELECT id FROM users WHERE username = :username', { ':username': username })
+    const existing = email
+      ? db.get('SELECT id FROM users WHERE username = :username OR email = :email', { ':username': username, ':email': email })
       : null;
     if (existing) {
-      fieldErrors.username = 'Username sudah dipakai.';
+      fieldErrors.email = 'Email sudah terdaftar.';
     }
 
     if (Object.keys(fieldErrors).length > 0) {
       req.flash('field_errors', fieldErrors);
-      req.flash('old_input', { username });
+      req.flash('old_input', { username, email });
       return res.redirect('/register');
     }
 
@@ -508,7 +488,7 @@ app.post(
 
     if (db.hasColumn('users', 'email')) {
       columns.push('email');
-      values[':email'] = `${username}@engpersona.local`;
+      values[':email'] = email;
     }
 
     if (db.hasColumn('users', 'spotify_playlist_url')) {
@@ -716,7 +696,7 @@ app.post('/logout', requireAuth, (req, res) => {
 app.get('/profile-setup', requireAuth, (req, res) => {
   res.render('auth/profile-setup', {
     layout: false,
-    username: req.user.username,
+    email: req.user.email,
     formError: req.flash('form_error')[0] || null,
     oldInput: req.flash('old_input')[0] || {},
   });
@@ -1072,27 +1052,19 @@ app.post(
   '/review/update-profile',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const username = String(req.body.username || req.user.username || '').trim();
+    const displayName = String(req.body.display_name || req.body.username || req.user.name || '').trim();
     const email = String(req.body.email || req.user.email || '').trim();
     const avatar = String(req.body.avatar || req.user.avatar || '').trim();
 
-    if (!username) {
-      return res.status(400).json({ success: false, message: 'Username tidak boleh kosong.' });
-    }
-
-    const existing = db.get('SELECT id FROM users WHERE username = :username AND id != :id', {
-      ':username': username,
-      ':id': req.user.id,
-    });
-    if (existing) {
-      return res.status(400).json({ success: false, message: 'Username sudah dipakai oleh pengguna lain.' });
+    if (!displayName) {
+      return res.status(400).json({ success: false, message: 'Nama tidak boleh kosong.' });
     }
 
     const now = nowIso();
     await db.run(
-      `UPDATE users SET username = :username, email = :email, avatar = :avatar, updated_at = :updated_at WHERE id = :id`,
+      `UPDATE users SET name = :name, email = :email, avatar = :avatar, updated_at = :updated_at WHERE id = :id`,
       {
-        ':username': username,
+        ':name': displayName,
         ':email': email,
         ':avatar': avatar,
         ':updated_at': now,
@@ -1103,7 +1075,7 @@ app.post(
     return res.json({
       success: true,
       message: 'Profil berhasil disimpan!',
-      user: { username, email, avatar },
+      user: { name: displayName, username: req.user.username, email, avatar },
     });
   }),
 );
@@ -1248,6 +1220,10 @@ app.post(
 );
 
 app.use((req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ success: false, message: 'Resource tidak ditemukan.' });
+  }
+
   res.status(404).send('404 Not Found');
 });
 
@@ -1255,7 +1231,11 @@ app.use((error, req, res, next) => {
   console.error('[SERVER ERROR]', error.message);
   console.error(error.stack);
   const isDev = process.env.NODE_ENV !== 'production';
-  res.status(500).send(
+  if (req.path.startsWith('/api/')) {
+    return res.status(500).json({ success: false, message: isDev ? error.message : 'Terjadi kesalahan pada server.' });
+  }
+
+  return res.status(500).send(
     isDev
       ? `Terjadi kesalahan pada server.<br><pre style="font-size:12px;text-align:left;padding:16px">${error.stack}</pre>`
       : 'Terjadi kesalahan pada server.'
