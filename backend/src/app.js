@@ -514,7 +514,7 @@ app.post(
     const { email, password, errors: fieldErrors } = validation;
 
     if (Object.keys(fieldErrors).length > 0) {
-      req.flash('form_error', Object.values(fieldErrors)[0]);
+      req.flash('field_errors', fieldErrors);
       req.flash('old_input', { email });
       return res.redirect('/login');
     }
@@ -523,7 +523,11 @@ app.post(
     const isValid = user ? await bcrypt.compare(password, user.password) : false;
 
     if (!isValid) {
-      req.flash('form_error', 'Email atau password salah.');
+      if (user) {
+        req.flash('field_errors', { password: 'Password salah.' });
+      } else {
+        req.flash('field_errors', { email: 'Email tidak ditemukan.' });
+      }
       req.flash('old_input', { email });
       return res.redirect('/login');
     }
@@ -704,20 +708,13 @@ app.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const validation = authValidator.validateProfileSetupInput(req.body);
-    const { name, username, errors: fieldErrors } = validation;
+    const { name, errors: fieldErrors } = validation;
+    // Form hanya meminta nama tampilan. Pertahankan username akun yang sudah ada.
+    const username = req.user.username;
     const avatar = String(req.body.avatar || 'icon2.jpg').trim();
 
     const allowedAvatars = ['icon1.jpg', 'icon2.jpg', 'icon3.jpg'];
     const finalAvatar = allowedAvatars.includes(avatar) ? avatar : 'icon2.jpg';
-
-    // Cek apakah username sudah digunakan (kecuali user sendiri)
-    const existingUser = db.get(
-      'SELECT id FROM users WHERE username = :username AND id != :id',
-      { ':username': username, ':id': req.user.id },
-    );
-    if (existingUser) {
-      fieldErrors.username = 'Username sudah digunakan.';
-    }
 
     if (Object.keys(fieldErrors).length > 0) {
       req.flash('form_error', Object.values(fieldErrors)[0]);

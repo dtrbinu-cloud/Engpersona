@@ -137,6 +137,8 @@ function validateLoginInput(body) {
 
   if (!email) {
     errors.email = 'Email wajib diisi.';
+  } else if (!EMAIL_REGEX.test(email)) {
+    errors.email = 'Format email tidak valid. Contoh: user@example.com';
   }
 
   if (!password) {
@@ -148,16 +150,12 @@ function validateLoginInput(body) {
 
 function validateProfileSetupInput(body) {
   const nameValidation = validateName(body.display_name || body.name);
-  const usernameValidation = validateUsername(body.username);
-
-  const errors = {
-    ...nameValidation.errors,
-    ...usernameValidation.errors,
-  };
+  // Username tidak ditampilkan pada halaman ini; akun memakai username lama.
+  const errors = { ...nameValidation.errors };
 
   return {
     name: nameValidation.name,
-    username: usernameValidation.username,
+    username: String(body.username || '').trim().toLowerCase(),
     errors,
   };
 }

@@ -35,12 +35,15 @@
           type="password"
           name="password"
           placeholder="Password"
+          minlength="8"
+          autocomplete="new-password"
           required>
         <input
           class="auth-input <%= fieldErrors.password_confirmation ? 'is-invalid' : '' %>"
           type="password"
           name="password_confirmation"
           placeholder="Konfirmasi Password"
+          autocomplete="new-password"
           required>
         <button class="auth-submit register-submit" type="submit">Register</button>
       </form>
