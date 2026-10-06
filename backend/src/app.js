@@ -10,7 +10,7 @@ const expressLayouts = require('express-ejs-layouts');
 
 const db = require('./database/db');
 const { requireAuth, requireGuest } = require('./middleware/auth');
-const { register: validateRegistration } = require('./requests/authRequest');
+const authValidator = require('./validators/authValidator');
 
 const app = express();
 
@@ -450,29 +450,30 @@ app.post(
   '/register',
   requireGuest,
   asyncHandler(async (req, res) => {
-    const input = validateRegistration(req.body);
-    const { username, email, password, errors: fieldErrors } = input;
+    const validation = authValidator.validateRegisterInput(req.body);
+    const { email, password, errors: fieldErrors } = validation;
 
-    const existing = email
-      ? db.get('SELECT id FROM users WHERE username = :username OR email = :email', { ':username': username, ':email': email })
-      : null;
-    if (existing) {
-      fieldErrors.email = 'Email sudah terdaftar.';
+    // Cek apakah email sudah terdaftar
+    const existingUser = db.get('SELECT id FROM users WHERE email = :email', { ':email': email });
+    if (existingUser) {
+      fieldErrors.email = 'Email sudah digunakan.';
     }
 
     if (Object.keys(fieldErrors).length > 0) {
       req.flash('field_errors', fieldErrors);
-      req.flash('old_input', { username, email });
+      req.flash('old_input', { email });
       return res.redirect('/register');
     }
 
+    const username = email; // username = email saat register
     const hashed = await bcrypt.hash(password, 10);
     const createdAt = nowIso();
 
-    const columns = ['username', 'password', 'xp', 'level', 'streak', 'last_login', 'created_at', 'updated_at'];
+    const columns = ['username', 'password', 'email', 'xp', 'level', 'streak', 'last_login', 'created_at', 'updated_at'];
     const values = {
       ':username': username,
       ':password': hashed,
+      ':email': email,
       ':xp': 0,
       ':level': 1,
       ':streak': 1,
@@ -486,11 +487,6 @@ app.post(
       values[':name'] = username;
     }
 
-    if (db.hasColumn('users', 'email')) {
-      columns.push('email');
-      values[':email'] = email;
-    }
-
     if (db.hasColumn('users', 'spotify_playlist_url')) {
       columns.push('spotify_playlist_url');
       values[':spotify_playlist_url'] = null;
@@ -499,7 +495,7 @@ app.post(
     const placeholders = columns.map((column) => `:${column}`).join(', ');
     await db.run(`INSERT INTO users (${columns.join(', ')}) VALUES (${placeholders})`, values);
 
-    const user = db.get('SELECT id FROM users WHERE username = :username', { ':username': username });
+    const user = db.get('SELECT id FROM users WHERE email = :email', { ':email': email });
     req.session.userId = user.id;
 
     res.redirect('/profile-setup');
@@ -514,21 +510,25 @@ app.post(
   '/login',
   requireGuest,
   asyncHandler(async (req, res) => {
-    const username = String(req.body.username || '').trim();
-    const password = String(req.body.password || '');
+    const validation = authValidator.validateLoginInput(req.body);
+    const { email, password, errors: fieldErrors } = validation;
 
-    if (!username || !password) {
-      req.flash('form_error', 'Username dan password wajib diisi.');
-      req.flash('old_input', { username });
+    if (Object.keys(fieldErrors).length > 0) {
+      req.flash('field_errors', fieldErrors);
+      req.flash('old_input', { email });
       return res.redirect('/login');
     }
 
-    const user = db.get('SELECT * FROM users WHERE username = :username', { ':username': username });
+    const user = db.get('SELECT * FROM users WHERE email = :email', { ':email': email });
     const isValid = user ? await bcrypt.compare(password, user.password) : false;
 
     if (!isValid) {
-      req.flash('form_error', 'Username atau password salah.');
-      req.flash('old_input', { username });
+      if (user) {
+        req.flash('field_errors', { password: 'Password salah.' });
+      } else {
+        req.flash('field_errors', { email: 'Email tidak ditemukan.' });
+      }
+      req.flash('old_input', { email });
       return res.redirect('/login');
     }
 
@@ -633,7 +633,7 @@ app.get(
 
     let user = db.get('SELECT * FROM users WHERE google_id = :google_id', { ':google_id': googleId });
     if (!user) {
-      user = db.get('SELECT * FROM users WHERE email = :email OR username = :email', { ':email': email });
+      user = db.get('SELECT * FROM users WHERE email = :email', { ':email': email });
     }
 
     const timestamp = nowIso();
@@ -698,6 +698,7 @@ app.get('/profile-setup', requireAuth, (req, res) => {
     layout: false,
     email: req.user.email,
     formError: req.flash('form_error')[0] || null,
+    fieldErrors: req.flash('field_errors')[0] || {},
     oldInput: req.flash('old_input')[0] || {},
   });
 });
@@ -706,28 +707,27 @@ app.post(
   '/profile-setup',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const displayName = String(req.body.display_name || '').trim();
+    const validation = authValidator.validateProfileSetupInput(req.body);
+    const { name, errors: fieldErrors } = validation;
+    // Form hanya meminta nama tampilan. Pertahankan username akun yang sudah ada.
+    const username = req.user.username;
     const avatar = String(req.body.avatar || 'icon2.jpg').trim();
 
     const allowedAvatars = ['icon1.jpg', 'icon2.jpg', 'icon3.jpg'];
     const finalAvatar = allowedAvatars.includes(avatar) ? avatar : 'icon2.jpg';
 
-    if (!displayName) {
-      req.flash('form_error', 'Nama wajib diisi.');
-      req.flash('old_input', { display_name: '' });
-      return res.redirect('/profile-setup');
-    }
-
-    if (displayName.length > 50) {
-      req.flash('form_error', 'Nama maksimal 50 karakter.');
-      req.flash('old_input', { display_name: displayName });
+    if (Object.keys(fieldErrors).length > 0) {
+      req.flash('form_error', Object.values(fieldErrors)[0]);
+      req.flash('field_errors', fieldErrors);
+      req.flash('old_input', { display_name: name, username });
       return res.redirect('/profile-setup');
     }
 
     await db.run(
-      'UPDATE users SET name = :name, avatar = :avatar, updated_at = :updated_at WHERE id = :id',
+      'UPDATE users SET username = :username, name = :name, avatar = :avatar, updated_at = :updated_at WHERE id = :id',
       {
-        ':name': displayName,
+        ':username': username,
+        ':name': name,
         ':avatar': finalAvatar,
         ':updated_at': nowIso(),
         ':id': req.user.id,
@@ -1104,12 +1104,12 @@ app.post(
       return res.status(400).json({ success: false, message: 'Password saat ini salah! Verifikasi gagal.' });
     }
 
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password baru minimal 6 karakter.' });
-    }
-
-    if (confirmPassword && newPassword !== confirmPassword) {
-      return res.status(400).json({ success: false, message: 'Konfirmasi password baru tidak sesuai.' });
+    const passwordValidation = authValidator.validatePassword(newPassword, confirmPassword);
+    if (Object.keys(passwordValidation.errors).length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: Object.values(passwordValidation.errors)[0],
+      });
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);

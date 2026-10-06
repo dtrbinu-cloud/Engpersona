@@ -22,17 +22,23 @@
       <% if (statusMessage || formError) { %>
         <div class="form-error"><%= statusMessage || formError %></div>
       <% } %>
+      <% if (fieldErrors.email) { %>
+        <div class="form-error"><%= fieldErrors.email %></div>
+      <% } %>
+      <% if (fieldErrors.password) { %>
+        <div class="form-error"><%= fieldErrors.password %></div>
+      <% } %>
 
       <form action="/login" method="POST" class="auth-form">
         <input
-          class="auth-input <%= (statusMessage || formError) ? 'is-invalid' : '' %>"
-          type="text"
-          name="username"
-          value="<%= oldInput.username || '' %>"
+          class="auth-input <%= fieldErrors.email ? 'is-invalid' : '' %>"
+          type="email"
+          name="email"
+          value="<%= oldInput.email || oldInput.username || '' %>"
           placeholder="Email"
           required>
         <input
-          class="auth-input <%= (statusMessage || formError) ? 'is-invalid' : '' %>"
+          class="auth-input <%= fieldErrors.password ? 'is-invalid' : '' %>"
           type="password"
           name="password"
           placeholder="Password"

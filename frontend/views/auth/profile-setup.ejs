@@ -209,8 +209,8 @@
     <div class="profile-card">
       <div class="brand-title">EngPersona</div>
 
-      <% if (typeof formError !== 'undefined' && formError) { %>
-        <div class="profile-error"><%= formError %></div>
+      <% if ((typeof formError !== 'undefined' && formError) || (fieldErrors && fieldErrors.name)) { %>
+        <div class="profile-error"><%= formError || fieldErrors.name %></div>
       <% } %>
 
       <div class="avatar-carousel" id="avatarCarousel">
@@ -237,7 +237,7 @@
       <form action="/profile-setup" method="POST" class="profile-form" id="profileForm">
         <input type="hidden" name="avatar" id="avatarInput" value="icon1.jpg">
         <input
-          class="profile-input <%= (typeof formError !== 'undefined' && formError) ? 'is-invalid' : '' %>"
+          class="profile-input <%= ((typeof formError !== 'undefined' && formError) || (fieldErrors && fieldErrors.name)) ? 'is-invalid' : '' %>"
           type="text"
           name="display_name"
           value="<%= typeof oldInput !== 'undefined' ? (oldInput.display_name || '') : '' %>"
