@@ -11,6 +11,11 @@ async function initDatabase(filePath) {
   const results = all('PRAGMA table_info(results)').map((row) => row.name);
   if (!users.includes('email')) database.run('ALTER TABLE users ADD COLUMN email TEXT');
   if (!users.includes('google_id')) database.run('ALTER TABLE users ADD COLUMN google_id TEXT');
+  if (!users.includes('preferred_level')) database.run('ALTER TABLE users ADD COLUMN preferred_level TEXT');
+  if (!users.includes('goal')) database.run('ALTER TABLE users ADD COLUMN goal TEXT');
+  if (!users.includes('self_rating')) database.run('ALTER TABLE users ADD COLUMN self_rating INTEGER');
+  if (!users.includes('start_mode')) database.run('ALTER TABLE users ADD COLUMN start_mode TEXT');
+  if (!users.includes('placement_done')) database.run('ALTER TABLE users ADD COLUMN placement_done INTEGER DEFAULT 0');
   if (!results.includes('total_questions')) database.run('ALTER TABLE results ADD COLUMN total_questions INTEGER DEFAULT 10');
   await persist();
 }

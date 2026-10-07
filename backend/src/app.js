@@ -11,6 +11,9 @@ const expressLayouts = require('express-ejs-layouts');
 const db = require('./database/db');
 const { requireAuth, requireGuest } = require('./middleware/auth');
 const authValidator = require('./validators/authValidator');
+const { LEVELS, byKey, fromGlobalLevel, startGlobalLevel, difficultyLabel } = require('./questions/levelConfig');
+const { tiers, PASS_RATIO } = require('./questions/placement');
+const { placementDecision } = require('./questions');
 
 const app = express();
 
@@ -155,20 +158,9 @@ function normalizeAnswer(answer) {
   return String(answer || '').trim().toLowerCase();
 }
 
-function difficultyLabel(difficulty) {
-  if (difficulty === 'medium') return 'Medium';
-  if (difficulty === 'hard') return 'Hard';
-  return 'Easy';
-}
-
 function mapDifficultyAndStageFromLevel(level) {
-  if (level >= 16) {
-    return ['hard', level - 15];
-  }
-  if (level >= 5) {
-    return ['medium', level - 4];
-  }
-  return ['easy', level];
+  const mapped = fromGlobalLevel(level);
+  return [mapped.difficulty, mapped.stage];
 }
 
 function determineCharacter(grammarScore, vocabularyScore, contextScore) {
@@ -317,6 +309,19 @@ const onboardingScreens = {
   },
 };
 
+onboardingScreens.level.options.forEach((option, index) => {
+  option.value = ['easy', 'hard', 'medium'][index];
+});
+onboardingScreens.reason.options.forEach((option, index) => {
+  option.value = ['communication', 'abroad', 'competition', 'other'][index];
+});
+onboardingScreens['english-level'].options.forEach((option, index) => {
+  option.value = String(index + 1);
+});
+onboardingScreens['start-point'].options.forEach((option, index) => {
+  option.value = index === 0 ? 'beginning' : 'placement';
+});
+
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
   if (Number.isNaN(num) || num < 1) return fallback;
@@ -336,7 +341,7 @@ async function resolveQuestionIds(difficulty, stage) {
       return exactQuestionIds;
     }
 
-    return db.all('SELECT id FROM questions ORDER BY RANDOM()').map((row) => Number(row.id));
+    return [];
   }
 
   const type = difficulty === 'medium' ? 'vocabulary' : difficulty === 'hard' ? 'context' : 'grammar';
@@ -752,6 +757,83 @@ app.get('/onboarding/:screen', requireAuth, (req, res, next) => {
   });
 });
 
+app.post('/onboarding/:screen', requireAuth, asyncHandler(async (req, res, next) => {
+  const screen = onboardingScreens[req.params.screen];
+  if (!screen) return next();
+
+  const selected = screen.options.find((option) => option.value === String(req.body.value || ''));
+  if (!selected) {
+    req.flash('form_error', 'Pilihan tidak valid.');
+    return res.redirect(`/onboarding/${req.params.screen}`);
+  }
+
+  const fields = {
+    level: { preferred_level: selected.value },
+    reason: { goal: selected.value },
+    'english-level': { self_rating: Number(selected.value) },
+    'start-point': { start_mode: selected.value },
+  }[req.params.screen];
+
+  if (req.params.screen === 'start-point') {
+    const level = req.user.preferred_level && byKey(req.user.preferred_level)
+      ? req.user.preferred_level
+      : 'easy';
+    fields.level = selected.value === 'beginning' ? startGlobalLevel(level) : Number(req.user.level || 1);
+    fields.placement_done = selected.value === 'beginning' ? 0 : 0;
+  }
+
+  const assignments = Object.keys(fields).map((key) => `${key} = :${key}`);
+  await db.run(`UPDATE users SET ${assignments.join(', ')}, updated_at = :updated_at WHERE id = :id`, {
+    ...Object.fromEntries(Object.entries(fields).map(([key, value]) => [`:${key}`, value])),
+    ':updated_at': nowIso(),
+    ':id': req.user.id,
+  });
+
+  if (req.params.screen === 'start-point' && selected.value === 'placement') return res.redirect('/placement');
+  return res.redirect(screen.next);
+}));
+
+const placementQuestions = Object.entries(tiers).flatMap(([difficulty, questions]) =>
+  questions.map((question) => ({ ...question, difficulty })),
+);
+
+app.get('/placement', requireAuth, (req, res) => {
+  const placement = req.session.placement || { index: 0, correct: { easy: 0, medium: 0, hard: 0 } };
+  if (placement.index >= placementQuestions.length) return res.redirect('/placement/result');
+  req.session.placement = placement;
+  const question = placementQuestions[placement.index];
+  return res.render('placement/index', {
+    layout: false,
+    question,
+    options: question.options,
+    index: placement.index,
+    total: placementQuestions.length,
+  });
+});
+
+app.post('/placement', requireAuth, (req, res) => {
+  const placement = req.session.placement || { index: 0, correct: { easy: 0, medium: 0, hard: 0 } };
+  const question = placementQuestions[placement.index];
+  if (!question) return res.redirect('/placement/result');
+  if (normalizeAnswer(req.body.answer) === normalizeAnswer(question.answer)) {
+    placement.correct[question.difficulty] += 1;
+  }
+  placement.index += 1;
+  req.session.placement = placement;
+  return res.redirect(placement.index >= placementQuestions.length ? '/placement/result' : '/placement');
+});
+
+app.get('/placement/result', requireAuth, asyncHandler(async (req, res) => {
+  const placement = req.session.placement || { correct: { easy: 0, medium: 0, hard: 0 } };
+  const decision = placementDecision(placement.correct);
+  await db.run(
+    'UPDATE users SET level = :level, start_mode = :start_mode, placement_done = 1, updated_at = :updated_at WHERE id = :id',
+    { ':level': decision.globalLevel, ':start_mode': 'placement', ':updated_at': nowIso(), ':id': req.user.id },
+  );
+  delete req.session.placement;
+  return res.redirect('/dashboard');
+}));
+
 app.get(
   '/dashboard',
   requireAuth,
@@ -761,14 +843,21 @@ app.get(
       { ':user_id': req.user.id },
     );
 
-    const totalTrackLevels = Math.max(20, Number(req.user.level || 0) + 5);
-    const trackLevels = Array.from({ length: totalTrackLevels }, (_, index) => index + 1);
+    const trackLevels = LEVELS.map((level) => ({
+      ...level,
+      nodes: Array.from({ length: level.stages }, (_, index) => ({
+        stage: index + 1,
+        globalLevel: startGlobalLevel(level.key) + index,
+      })),
+    }));
+    const activeLevel = fromGlobalLevel(Number(req.user.level || 1));
 
     res.render('dashboard/index', {
       layout: false,
       user: req.user,
       latestResult,
       trackLevels,
+      activeLevel,
     });
   }),
 );
@@ -850,8 +939,12 @@ app.get(
 
     const progressPercent = Math.floor((currentIndex / Math.max(totalQuestions, 1)) * 100);
 
+    const publicQuestion = (({ id, question: text, option_a, option_b, option_c, option_d, type }) => ({
+      id, question: text, option_a, option_b, option_c, option_d, type,
+    }))(question);
+
     res.render('exercise/index', {
-      question,
+      question: publicQuestion,
       currentIndex: currentIndex + 1,
       totalQuestions,
       progressPercent,
