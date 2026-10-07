@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tes Penempatan - EngPersona</title>
+  <link rel="stylesheet" href="/engpersona-ui.css">
+</head>
+<body>
+  <main class="chat-screen">
+    <img class="ep-logo-img side-logo" src="/logo.png" alt="EngPersona">
+    <section class="chat-content">
+      <div class="chat-bubble">Tes penempatan — soal <%= index + 1 %> dari <%= total %></div>
+      <p><%= question.question %></p>
+      <form method="POST" action="/placement" class="option-grid">
+        <% options.forEach((option) => { %>
+          <button class="option-card" type="submit" name="answer" value="<%= option %>"><%= option %></button>
+        <% }) %>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
