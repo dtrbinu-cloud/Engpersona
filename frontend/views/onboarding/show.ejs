@@ -17,10 +17,13 @@
       <% if (screen.type === 'level-grid' || screen.type === 'reason-grid') { %>
         <div class="option-grid">
           <% screen.options.forEach(function(option) { %>
-            <a class="option-card <%= screen.type === 'level-grid' ? 'has-tag' : '' %>" href="<%= screen.next %>">
+            <form method="POST" action="/onboarding/<%= screen.type === 'level-grid' ? 'level' : 'reason' %>">
+              <input type="hidden" name="value" value="<%= option.value %>">
+              <button class="option-card <%= screen.type === 'level-grid' ? 'has-tag' : '' %>" type="submit">
               <span class="icon" aria-hidden="true"><%= option.icon %></span>
               <span class="label"><%= option.text %></span>
-            </a>
+              </button>
+            </form>
           <% }); %>
         </div>
       <% } %>
@@ -28,10 +31,13 @@
       <% if (screen.type === 'level-list') { %>
         <div class="level-list">
           <% screen.options.forEach(function(option) { %>
-            <button class="level-row selectable-option" type="button">
+            <form method="POST" action="/onboarding/english-level">
+            <input type="hidden" name="value" value="<%= option.value %>">
+            <button class="level-row selectable-option" type="submit">
               <span class="tiny-icon" aria-hidden="true"><%= option.icon %></span>
               <span><%= option.text %></span>
             </button>
+            </form>
           <% }); %>
         </div>
       <% } %>
@@ -39,21 +45,21 @@
       <% if (screen.type === 'start-list') { %>
         <div class="start-list">
           <% screen.options.forEach(function(option) { %>
-            <button class="start-card selectable-option" type="button">
+            <form method="POST" action="/onboarding/start-point">
+            <input type="hidden" name="value" value="<%= option.value %>">
+            <button class="start-card selectable-option" type="submit">
               <span class="round-icon <%= option.iconClass %>" aria-hidden="true"><%= option.icon %></span>
               <span>
                 <h2><%= option.title %></h2>
                 <p><%= option.description %></p>
               </span>
             </button>
+            </form>
           <% }); %>
         </div>
       <% } %>
     </section>
 
-    <% if (screen.type === 'level-list' || screen.type === 'start-list') { %>
-      <a class="continue-btn" href="<%= screen.next %>">Lanjutkan</a>
-    <% } %>
   </main>
   <script>
     document.querySelectorAll('.selectable-option').forEach(function(option) {

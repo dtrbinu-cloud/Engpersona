@@ -18,8 +18,13 @@ function listQuestions(difficulty, stage) {
 }
 
 async function updateProfile(userId, data) {
-  const existing = users.byUsername(data.username);
-  if (existing && existing.id !== userId) return null;
+  const existingUser = users.byUsername(data.username);
+  if (existingUser && existingUser.id !== userId) return null;
+
+  if (data.email) {
+    const existingEmail = users.byEmail(data.email);
+    if (existingEmail && existingEmail.id !== userId) return null;
+  }
 
   await users.update(userId, data);
   return users.byId(userId);
@@ -38,6 +43,12 @@ function usernameExists(username, userId) {
   return Boolean(existing && existing.id !== userId);
 }
 
+function emailExists(email, userId) {
+  if (!email) return false;
+  const existing = users.byEmail(email);
+  return Boolean(existing && existing.id !== userId);
+}
+
 module.exports = {
   latestResult: results.latest,
   listQuestions,
@@ -45,4 +56,5 @@ module.exports = {
   updatePlaylist,
   updateProfile,
   usernameExists,
+  emailExists,
 };

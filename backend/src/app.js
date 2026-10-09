@@ -7,10 +7,15 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const bcrypt = require('bcryptjs');
 const expressLayouts = require('express-ejs-layouts');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const db = require('./database/db');
 const { requireAuth, requireGuest } = require('./middleware/auth');
 const authValidator = require('./validators/authValidator');
+const { LEVELS, byKey, fromGlobalLevel, startGlobalLevel, difficultyLabel } = require('./questions/levelConfig');
+const { tiers, PASS_RATIO } = require('./questions/placement');
+const { placementDecision } = require('./questions');
 
 const app = express();
 
@@ -155,20 +160,9 @@ function normalizeAnswer(answer) {
   return String(answer || '').trim().toLowerCase();
 }
 
-function difficultyLabel(difficulty) {
-  if (difficulty === 'medium') return 'Medium';
-  if (difficulty === 'hard') return 'Hard';
-  return 'Easy';
-}
-
 function mapDifficultyAndStageFromLevel(level) {
-  if (level >= 16) {
-    return ['hard', level - 15];
-  }
-  if (level >= 5) {
-    return ['medium', level - 4];
-  }
-  return ['easy', level];
+  const mapped = fromGlobalLevel(level);
+  return [mapped.difficulty, mapped.stage];
 }
 
 function determineCharacter(grammarScore, vocabularyScore, contextScore) {
@@ -317,6 +311,19 @@ const onboardingScreens = {
   },
 };
 
+onboardingScreens.level.options.forEach((option, index) => {
+  option.value = ['easy', 'hard', 'medium'][index];
+});
+onboardingScreens.reason.options.forEach((option, index) => {
+  option.value = ['communication', 'abroad', 'competition', 'other'][index];
+});
+onboardingScreens['english-level'].options.forEach((option, index) => {
+  option.value = String(index + 1);
+});
+onboardingScreens['start-point'].options.forEach((option, index) => {
+  option.value = index === 0 ? 'beginning' : 'placement';
+});
+
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
   if (Number.isNaN(num) || num < 1) return fallback;
@@ -336,7 +343,7 @@ async function resolveQuestionIds(difficulty, stage) {
       return exactQuestionIds;
     }
 
-    return db.all('SELECT id FROM questions ORDER BY RANDOM()').map((row) => Number(row.id));
+    return [];
   }
 
   const type = difficulty === 'medium' ? 'vocabulary' : difficulty === 'hard' ? 'context' : 'grammar';
@@ -368,11 +375,95 @@ app.use(express.static(path.join(__dirname, '..', '..', 'frontend', 'public')));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", viteDevServer || null].filter(Boolean),
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["'self'", "https://open.spotify.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", viteDevServer || null].filter(Boolean),
+    },
+  },
+}));
+
+// Rate limiter untuk endpoint autentikasi
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: 'Terlalu banyak percobaan. Coba lagi setelah 15 menit.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { success: false, message: 'Terlalu banyak percobaan. Coba lagi setelah 15 menit.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(
   session(sessionConfig),
 );
 
 app.use(flash());
+
+// CSRF protection (Origin/Referer same-origin verification & optional token)
+function generateCsrfToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function csrfProtection(req, res, next) {
+  // Skip CSRF untuk API routes (menggunakan Bearer JWT, bukan session cookie)
+  if (req.path.startsWith('/api/')) return next();
+
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = generateCsrfToken();
+  }
+  res.locals.csrfToken = req.session.csrfToken;
+
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    // 1. Same-Origin verification via Origin/Referer header
+    const origin = req.headers.origin;
+    const referer = req.headers.referer;
+    const host = req.get('host');
+
+    if (origin) {
+      try {
+        const originUrl = new URL(origin);
+        if (originUrl.host !== host) {
+          return res.status(403).send('Cross-site request forgery (CSRF) detected.');
+        }
+      } catch (_) {
+        return res.status(403).send('Invalid Origin header.');
+      }
+    } else if (referer) {
+      try {
+        const refererUrl = new URL(referer);
+        if (refererUrl.host !== host) {
+          return res.status(403).send('Cross-site request forgery (CSRF) detected.');
+        }
+      } catch (_) {
+        return res.status(403).send('Invalid Referer header.');
+      }
+    }
+
+    // 2. Token verification if token is submitted in body or header
+    const token = req.body?._csrf || req.headers['x-csrf-token'];
+    if (token && token !== req.session.csrfToken) {
+      req.flash('form_error', 'Sesi tidak valid atau telah kedaluwarsa. Silakan coba lagi.');
+      return res.redirect(referer || '/');
+    }
+  }
+
+  return next();
+}
+
+app.use(csrfProtection);
 
 app.use(
   asyncHandler(async (req, res, next) => {
@@ -448,6 +539,7 @@ app.get('/register', requireGuest, (req, res) => {
 
 app.post(
   '/register',
+  authLimiter,
   requireGuest,
   asyncHandler(async (req, res) => {
     const validation = authValidator.validateRegisterInput(req.body);
@@ -508,6 +600,7 @@ app.get('/login', requireGuest, (req, res) => {
 
 app.post(
   '/login',
+  authLimiter,
   requireGuest,
   asyncHandler(async (req, res) => {
     const validation = authValidator.validateLoginInput(req.body);
@@ -523,11 +616,7 @@ app.post(
     const isValid = user ? await bcrypt.compare(password, user.password) : false;
 
     if (!isValid) {
-      if (user) {
-        req.flash('field_errors', { password: 'Password salah.' });
-      } else {
-        req.flash('field_errors', { email: 'Email tidak ditemukan.' });
-      }
+      req.flash('field_errors', { email: 'Email atau password salah.' });
       req.flash('old_input', { email });
       return res.redirect('/login');
     }
@@ -542,8 +631,12 @@ app.post(
       if (!Number.isNaN(lastLoginDate.valueOf())) {
         const lastDay = startOfDay(lastLoginDate);
         const days = diffInDays(lastDay, today);
-        if (days >= 1) {
+        if (days === 1) {
           streak += 1;
+        } else if (days > 1) {
+          streak = 1;
+        } else if (days === 0 && streak === 0) {
+          streak = 1;
         }
       }
     }
@@ -752,6 +845,83 @@ app.get('/onboarding/:screen', requireAuth, (req, res, next) => {
   });
 });
 
+app.post('/onboarding/:screen', requireAuth, asyncHandler(async (req, res, next) => {
+  const screen = onboardingScreens[req.params.screen];
+  if (!screen) return next();
+
+  const selected = screen.options.find((option) => option.value === String(req.body.value || ''));
+  if (!selected) {
+    req.flash('form_error', 'Pilihan tidak valid.');
+    return res.redirect(`/onboarding/${req.params.screen}`);
+  }
+
+  const fields = {
+    level: { preferred_level: selected.value },
+    reason: { goal: selected.value },
+    'english-level': { self_rating: Number(selected.value) },
+    'start-point': { start_mode: selected.value },
+  }[req.params.screen];
+
+  if (req.params.screen === 'start-point') {
+    const level = req.user.preferred_level && byKey(req.user.preferred_level)
+      ? req.user.preferred_level
+      : 'easy';
+    fields.level = selected.value === 'beginning' ? startGlobalLevel(level) : Number(req.user.level || 1);
+    fields.placement_done = selected.value === 'beginning' ? 0 : 0;
+  }
+
+  const assignments = Object.keys(fields).map((key) => `${key} = :${key}`);
+  await db.run(`UPDATE users SET ${assignments.join(', ')}, updated_at = :updated_at WHERE id = :id`, {
+    ...Object.fromEntries(Object.entries(fields).map(([key, value]) => [`:${key}`, value])),
+    ':updated_at': nowIso(),
+    ':id': req.user.id,
+  });
+
+  if (req.params.screen === 'start-point' && selected.value === 'placement') return res.redirect('/placement');
+  return res.redirect(screen.next);
+}));
+
+const placementQuestions = Object.entries(tiers).flatMap(([difficulty, questions]) =>
+  questions.map((question) => ({ ...question, difficulty })),
+);
+
+app.get('/placement', requireAuth, (req, res) => {
+  const placement = req.session.placement || { index: 0, correct: { easy: 0, medium: 0, hard: 0 } };
+  if (placement.index >= placementQuestions.length) return res.redirect('/placement/result');
+  req.session.placement = placement;
+  const question = placementQuestions[placement.index];
+  return res.render('placement/index', {
+    layout: false,
+    question,
+    options: question.options,
+    index: placement.index,
+    total: placementQuestions.length,
+  });
+});
+
+app.post('/placement', requireAuth, (req, res) => {
+  const placement = req.session.placement || { index: 0, correct: { easy: 0, medium: 0, hard: 0 } };
+  const question = placementQuestions[placement.index];
+  if (!question) return res.redirect('/placement/result');
+  if (normalizeAnswer(req.body.answer) === normalizeAnswer(question.answer)) {
+    placement.correct[question.difficulty] += 1;
+  }
+  placement.index += 1;
+  req.session.placement = placement;
+  return res.redirect(placement.index >= placementQuestions.length ? '/placement/result' : '/placement');
+});
+
+app.get('/placement/result', requireAuth, asyncHandler(async (req, res) => {
+  const placement = req.session.placement || { correct: { easy: 0, medium: 0, hard: 0 } };
+  const decision = placementDecision(placement.correct);
+  await db.run(
+    'UPDATE users SET level = :level, start_mode = :start_mode, placement_done = 1, updated_at = :updated_at WHERE id = :id',
+    { ':level': decision.globalLevel, ':start_mode': 'placement', ':updated_at': nowIso(), ':id': req.user.id },
+  );
+  delete req.session.placement;
+  return res.redirect('/dashboard');
+}));
+
 app.get(
   '/dashboard',
   requireAuth,
@@ -761,14 +931,21 @@ app.get(
       { ':user_id': req.user.id },
     );
 
-    const totalTrackLevels = Math.max(20, Number(req.user.level || 0) + 5);
-    const trackLevels = Array.from({ length: totalTrackLevels }, (_, index) => index + 1);
+    const trackLevels = LEVELS.map((level) => ({
+      ...level,
+      nodes: Array.from({ length: level.stages }, (_, index) => ({
+        stage: index + 1,
+        globalLevel: startGlobalLevel(level.key) + index,
+      })),
+    }));
+    const activeLevel = fromGlobalLevel(Number(req.user.level || 1));
 
     res.render('dashboard/index', {
       layout: false,
       user: req.user,
       latestResult,
       trackLevels,
+      activeLevel,
     });
   }),
 );
@@ -819,8 +996,12 @@ app.get(
   }),
 );
 
-app.all('/exercise/exit', requireAuth, (req, res) => {
+app.post('/exercise/exit', requireAuth, (req, res) => {
   delete req.session.exercise;
+  res.redirect('/dashboard');
+});
+
+app.get('/exercise/exit', requireAuth, (req, res) => {
   res.redirect('/dashboard');
 });
 
@@ -850,8 +1031,12 @@ app.get(
 
     const progressPercent = Math.floor((currentIndex / Math.max(totalQuestions, 1)) * 100);
 
+    const publicQuestion = (({ id, question: text, option_a, option_b, option_c, option_d, type }) => ({
+      id, question: text, option_a, option_b, option_c, option_d, type,
+    }))(question);
+
     res.render('exercise/index', {
-      question,
+      question: publicQuestion,
       currentIndex: currentIndex + 1,
       totalQuestions,
       progressPercent,
@@ -1053,20 +1238,41 @@ app.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const displayName = String(req.body.display_name || req.body.username || req.user.name || '').trim();
-    const email = String(req.body.email || req.user.email || '').trim();
+    const email = String(req.body.email || req.user.email || '').trim().toLowerCase();
     const avatar = String(req.body.avatar || req.user.avatar || '').trim();
 
     if (!displayName) {
       return res.status(400).json({ success: false, message: 'Nama tidak boleh kosong.' });
     }
+    if (displayName.length < 2 || displayName.length > 50) {
+      return res.status(400).json({ success: false, message: 'Nama harus antara 2 hingga 50 karakter.' });
+    }
+
+    if (email) {
+      const emailValidation = authValidator.validateEmail(email);
+      if (Object.keys(emailValidation.errors).length > 0) {
+        return res.status(400).json({ success: false, message: emailValidation.errors.email });
+      }
+      const existingEmail = db.get('SELECT id FROM users WHERE email = :email AND id != :id', {
+        ':email': email,
+        ':id': req.user.id,
+      });
+      if (existingEmail) {
+        return res.status(400).json({ success: false, message: 'Email sudah digunakan oleh akun lain.' });
+      }
+    }
+
+    const allowedAvatars = ['icon1.jpg', 'icon2.jpg', 'icon3.jpg'];
+    const finalAvatar = allowedAvatars.includes(avatar) ? avatar : req.user.avatar || 'icon2.jpg';
 
     const now = nowIso();
+    const finalEmail = email || req.user.email;
     await db.run(
       `UPDATE users SET name = :name, email = :email, avatar = :avatar, updated_at = :updated_at WHERE id = :id`,
       {
         ':name': displayName,
-        ':email': email,
-        ':avatar': avatar,
+        ':email': finalEmail,
+        ':avatar': finalAvatar,
         ':updated_at': now,
         ':id': req.user.id,
       },
@@ -1075,13 +1281,14 @@ app.post(
     return res.json({
       success: true,
       message: 'Profil berhasil disimpan!',
-      user: { name: displayName, username: req.user.username, email, avatar },
+      user: { name: displayName, username: req.user.username, email: finalEmail, avatar: finalAvatar },
     });
   }),
 );
 
 app.post(
   '/review/update-password',
+  authLimiter,
   requireAuth,
   asyncHandler(async (req, res) => {
     if (req.user.google_id) {
@@ -1230,16 +1437,11 @@ app.use((req, res) => {
 app.use((error, req, res, next) => {
   console.error('[SERVER ERROR]', error.message);
   console.error(error.stack);
-  const isDev = process.env.NODE_ENV !== 'production';
   if (req.path.startsWith('/api/')) {
-    return res.status(500).json({ success: false, message: isDev ? error.message : 'Terjadi kesalahan pada server.' });
+    return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
   }
 
-  return res.status(500).send(
-    isDev
-      ? `Terjadi kesalahan pada server.<br><pre style="font-size:12px;text-align:left;padding:16px">${error.stack}</pre>`
-      : 'Terjadi kesalahan pada server.'
-  );
+  return res.status(500).send('Terjadi kesalahan pada server.');
 });
 
 async function start() {

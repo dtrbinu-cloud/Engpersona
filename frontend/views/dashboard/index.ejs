@@ -6,6 +6,7 @@
   <title>Dashboard - EngPersona</title>
   <link rel="stylesheet" href="/engpersona-ui.css">
   <style>
+    #sectionMudah, #sectionSedang { display: none; }
     :root {
       --bg-dark-panel: #0a223c;
       --bg-gradient: linear-gradient(135deg, #5086ec, #2b5bc3);
@@ -535,6 +536,22 @@
   <!-- CENTER CONTENT -->
   <main class="center-content">
     <button class="mulai-btn-pill" id="btnMulai">Mulai</button>
+
+    <% trackLevels.forEach(function(level) { %>
+      <section class="level-section dynamic-level-section <%= level.nodes.every(node => node.globalLevel > (user.level || 1)) ? 'locked' : '' %>">
+        <div class="level-title-banner">LEVEL <%= level.label.toUpperCase() %></div>
+        <div class="path-container">
+          <svg class="path-line-svg"><path d="M 100,0 C 170,80 170,120 100,200 C 30,280 30,320 100,400 C 170,480 170,520 100,600" /></svg>
+          <% level.nodes.forEach(function(node, index) { %>
+            <div class="path-node-wrapper <%= index % 2 === 0 ? 'pos-left' : 'pos-right' %>" data-global-level="<%= node.globalLevel %>">
+              <div class="node-circle" id="dynamic-node-<%= node.globalLevel %>">
+                <span class="node-number-label"><%= node.stage %></span>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </section>
+    <% }); %>
 
     <!-- LEVEL MUDAH (Easy: Stages 1-4) -->
     <section class="level-section" id="sectionMudah">

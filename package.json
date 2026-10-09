@@ -7,7 +7,9 @@
     "build:frontend": "vite build",
     "dev:frontend": "vite --host 0.0.0.0",
     "dev:server": "set VITE_DEV_SERVER=http://localhost:5173&& node backend/src/server.js",
-    "start": "node backend/src/server.js"
+    "start": "node backend/src/server.js",
+    "questions:check": "node backend/src/database/seed-questions.js --check",
+    "questions:seed": "node backend/src/database/seed-questions.js"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +20,9 @@
     "ejs": "^5.0.2",
     "express": "^5.2.1",
     "express-ejs-layouts": "^2.5.1",
+    "express-rate-limit": "^8.7.1",
     "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "sql.js": "^1.14.1",
     "vue": "^3.5.42"
