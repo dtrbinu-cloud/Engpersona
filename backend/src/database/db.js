@@ -22,6 +22,31 @@ async function initDatabase(filePath) {
 function all(sql, params = {}) { ensure(); const stmt = database.prepare(sql); stmt.bind(params); const rows=[]; while(stmt.step()) rows.push(stmt.getAsObject()); stmt.free(); return rows; }
 function get(sql, params = {}) { return all(sql, params)[0] || null; }
 async function persist() { await fs.promises.mkdir(path.dirname(databasePath), { recursive:true }); await fs.promises.writeFile(databasePath, Buffer.from(database.export())); }
-async function run(sql, params = {}) { ensure(); database.run(sql, params); const changes = Number(get('SELECT changes() AS count').count); const lastInsertRowid = Number(get('SELECT last_insert_rowid() AS id').id); await persist(); return { changes, lastInsertRowid }; }
-function hasColumn(table, column) { return all(`PRAGMA table_info(${table})`).some((item) => item.name === column); }
+let writeInProgress = false;
+const writeQueue = [];
+async function run(sql, params = {}) {
+  if (writeInProgress) {
+    await new Promise((resolve) => writeQueue.push(resolve));
+  }
+  writeInProgress = true;
+  try {
+    ensure();
+    database.run(sql, params);
+    const changes = Number(get('SELECT changes() AS count').count);
+    const lastInsertRowid = Number(get('SELECT last_insert_rowid() AS id').id);
+    await persist();
+    return { changes, lastInsertRowid };
+  } finally {
+    writeInProgress = false;
+    if (writeQueue.length > 0) {
+      const next = writeQueue.shift();
+      next();
+    }
+  }
+}
+function hasColumn(table, column) {
+  const allowed = ['users', 'questions', 'results', 'wrong_answers', 'refresh_tokens'];
+  if (!allowed.includes(table)) throw new Error(`Tabel tidak diizinkan: ${table}`);
+  return all(`PRAGMA table_info(${table})`).some((item) => item.name === column);
+}
 module.exports = { initDatabase, all, get, run, hasColumn };

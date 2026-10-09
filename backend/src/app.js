@@ -7,6 +7,8 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const bcrypt = require('bcryptjs');
 const expressLayouts = require('express-ejs-layouts');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const db = require('./database/db');
 const { requireAuth, requireGuest } = require('./middleware/auth');
@@ -373,11 +375,95 @@ app.use(express.static(path.join(__dirname, '..', '..', 'frontend', 'public')));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", viteDevServer || null].filter(Boolean),
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["'self'", "https://open.spotify.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", viteDevServer || null].filter(Boolean),
+    },
+  },
+}));
+
+// Rate limiter untuk endpoint autentikasi
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: 'Terlalu banyak percobaan. Coba lagi setelah 15 menit.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { success: false, message: 'Terlalu banyak percobaan. Coba lagi setelah 15 menit.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(
   session(sessionConfig),
 );
 
 app.use(flash());
+
+// CSRF protection (Origin/Referer same-origin verification & optional token)
+function generateCsrfToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function csrfProtection(req, res, next) {
+  // Skip CSRF untuk API routes (menggunakan Bearer JWT, bukan session cookie)
+  if (req.path.startsWith('/api/')) return next();
+
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = generateCsrfToken();
+  }
+  res.locals.csrfToken = req.session.csrfToken;
+
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    // 1. Same-Origin verification via Origin/Referer header
+    const origin = req.headers.origin;
+    const referer = req.headers.referer;
+    const host = req.get('host');
+
+    if (origin) {
+      try {
+        const originUrl = new URL(origin);
+        if (originUrl.host !== host) {
+          return res.status(403).send('Cross-site request forgery (CSRF) detected.');
+        }
+      } catch (_) {
+        return res.status(403).send('Invalid Origin header.');
+      }
+    } else if (referer) {
+      try {
+        const refererUrl = new URL(referer);
+        if (refererUrl.host !== host) {
+          return res.status(403).send('Cross-site request forgery (CSRF) detected.');
+        }
+      } catch (_) {
+        return res.status(403).send('Invalid Referer header.');
+      }
+    }
+
+    // 2. Token verification if token is submitted in body or header
+    const token = req.body?._csrf || req.headers['x-csrf-token'];
+    if (token && token !== req.session.csrfToken) {
+      req.flash('form_error', 'Sesi tidak valid atau telah kedaluwarsa. Silakan coba lagi.');
+      return res.redirect(referer || '/');
+    }
+  }
+
+  return next();
+}
+
+app.use(csrfProtection);
 
 app.use(
   asyncHandler(async (req, res, next) => {
@@ -453,6 +539,7 @@ app.get('/register', requireGuest, (req, res) => {
 
 app.post(
   '/register',
+  authLimiter,
   requireGuest,
   asyncHandler(async (req, res) => {
     const validation = authValidator.validateRegisterInput(req.body);
@@ -513,6 +600,7 @@ app.get('/login', requireGuest, (req, res) => {
 
 app.post(
   '/login',
+  authLimiter,
   requireGuest,
   asyncHandler(async (req, res) => {
     const validation = authValidator.validateLoginInput(req.body);
@@ -528,11 +616,7 @@ app.post(
     const isValid = user ? await bcrypt.compare(password, user.password) : false;
 
     if (!isValid) {
-      if (user) {
-        req.flash('field_errors', { password: 'Password salah.' });
-      } else {
-        req.flash('field_errors', { email: 'Email tidak ditemukan.' });
-      }
+      req.flash('field_errors', { email: 'Email atau password salah.' });
       req.flash('old_input', { email });
       return res.redirect('/login');
     }
@@ -547,8 +631,12 @@ app.post(
       if (!Number.isNaN(lastLoginDate.valueOf())) {
         const lastDay = startOfDay(lastLoginDate);
         const days = diffInDays(lastDay, today);
-        if (days >= 1) {
+        if (days === 1) {
           streak += 1;
+        } else if (days > 1) {
+          streak = 1;
+        } else if (days === 0 && streak === 0) {
+          streak = 1;
         }
       }
     }
@@ -908,8 +996,12 @@ app.get(
   }),
 );
 
-app.all('/exercise/exit', requireAuth, (req, res) => {
+app.post('/exercise/exit', requireAuth, (req, res) => {
   delete req.session.exercise;
+  res.redirect('/dashboard');
+});
+
+app.get('/exercise/exit', requireAuth, (req, res) => {
   res.redirect('/dashboard');
 });
 
@@ -1146,20 +1238,41 @@ app.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const displayName = String(req.body.display_name || req.body.username || req.user.name || '').trim();
-    const email = String(req.body.email || req.user.email || '').trim();
+    const email = String(req.body.email || req.user.email || '').trim().toLowerCase();
     const avatar = String(req.body.avatar || req.user.avatar || '').trim();
 
     if (!displayName) {
       return res.status(400).json({ success: false, message: 'Nama tidak boleh kosong.' });
     }
+    if (displayName.length < 2 || displayName.length > 50) {
+      return res.status(400).json({ success: false, message: 'Nama harus antara 2 hingga 50 karakter.' });
+    }
+
+    if (email) {
+      const emailValidation = authValidator.validateEmail(email);
+      if (Object.keys(emailValidation.errors).length > 0) {
+        return res.status(400).json({ success: false, message: emailValidation.errors.email });
+      }
+      const existingEmail = db.get('SELECT id FROM users WHERE email = :email AND id != :id', {
+        ':email': email,
+        ':id': req.user.id,
+      });
+      if (existingEmail) {
+        return res.status(400).json({ success: false, message: 'Email sudah digunakan oleh akun lain.' });
+      }
+    }
+
+    const allowedAvatars = ['icon1.jpg', 'icon2.jpg', 'icon3.jpg'];
+    const finalAvatar = allowedAvatars.includes(avatar) ? avatar : req.user.avatar || 'icon2.jpg';
 
     const now = nowIso();
+    const finalEmail = email || req.user.email;
     await db.run(
       `UPDATE users SET name = :name, email = :email, avatar = :avatar, updated_at = :updated_at WHERE id = :id`,
       {
         ':name': displayName,
-        ':email': email,
-        ':avatar': avatar,
+        ':email': finalEmail,
+        ':avatar': finalAvatar,
         ':updated_at': now,
         ':id': req.user.id,
       },
@@ -1168,13 +1281,14 @@ app.post(
     return res.json({
       success: true,
       message: 'Profil berhasil disimpan!',
-      user: { name: displayName, username: req.user.username, email, avatar },
+      user: { name: displayName, username: req.user.username, email: finalEmail, avatar: finalAvatar },
     });
   }),
 );
 
 app.post(
   '/review/update-password',
+  authLimiter,
   requireAuth,
   asyncHandler(async (req, res) => {
     if (req.user.google_id) {
@@ -1323,16 +1437,11 @@ app.use((req, res) => {
 app.use((error, req, res, next) => {
   console.error('[SERVER ERROR]', error.message);
   console.error(error.stack);
-  const isDev = process.env.NODE_ENV !== 'production';
   if (req.path.startsWith('/api/')) {
-    return res.status(500).json({ success: false, message: isDev ? error.message : 'Terjadi kesalahan pada server.' });
+    return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
   }
 
-  return res.status(500).send(
-    isDev
-      ? `Terjadi kesalahan pada server.<br><pre style="font-size:12px;text-align:left;padding:16px">${error.stack}</pre>`
-      : 'Terjadi kesalahan pada server.'
-  );
+  return res.status(500).send('Terjadi kesalahan pada server.');
 });
 
 async function start() {

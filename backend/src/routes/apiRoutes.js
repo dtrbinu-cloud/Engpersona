@@ -1,12 +1,22 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const controller = require('../controllers/apiController');
 const { requireApiAuth } = require('../middleware/apiAuth');
 const asyncHandler = require('../utils/asyncHandler');
 const router = express.Router();
 const auth = require('../controllers/apiAuthController');
-router.post('/auth/register', asyncHandler(auth.register));
-router.post('/auth/login', asyncHandler(auth.login));
-router.post('/auth/refresh', asyncHandler(auth.refresh));
+
+const apiAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { success: false, message: 'Terlalu banyak percobaan. Coba lagi setelah 15 menit.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post('/auth/register', apiAuthLimiter, asyncHandler(auth.register));
+router.post('/auth/login', apiAuthLimiter, asyncHandler(auth.login));
+router.post('/auth/refresh', apiAuthLimiter, asyncHandler(auth.refresh));
 router.post('/auth/logout', asyncHandler(auth.logout));
 router.use(requireApiAuth);
 router.get('/me', controller.me);
